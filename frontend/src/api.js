@@ -18,6 +18,11 @@ const api = {
     return res.json();
   },
 
+  getHistory: async () => {
+    const res = await fetch(`${BASE_URL}/history`);
+    return res.json();
+  },
+
   // Generate
   generateEpisode: async (scriptText, episodeName) => {
     const res = await fetch(`${BASE_URL}/generate`, {

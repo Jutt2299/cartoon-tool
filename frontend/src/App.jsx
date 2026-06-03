@@ -1,47 +1,26 @@
-import { useState } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Sidebar from "./components/Sidebar";
 import Home from "./pages/Home";
+import History from "./pages/History";
 import Settings from "./pages/Settings";
-import SessionBar from "./components/SessionBar";
+import Status from "./pages/Status";
 
-export default function App() {
-  const [page, setPage] = useState("home");
-
+function App() {
   return (
-    <div className="bg-gray-950 min-h-screen">
-
-      {/* Top Session Bar */}
-      <SessionBar />
-
-      {/* Navigation */}
-      <div className="fixed top-12 left-0 right-0 z-40 bg-gray-900 border-b border-gray-800 px-6 py-2 flex gap-4">
-        <button
-          onClick={() => setPage("home")}
-          className={`text-sm px-3 py-1.5 rounded-lg transition ${
-            page === "home"
-              ? "bg-blue-600 text-white"
-              : "text-gray-400 hover:text-white"
-          }`}
-        >
-          🎬 Generate
-        </button>
-        <button
-          onClick={() => setPage("settings")}
-          className={`text-sm px-3 py-1.5 rounded-lg transition ${
-            page === "settings"
-              ? "bg-blue-600 text-white"
-              : "text-gray-400 hover:text-white"
-          }`}
-        >
-          ⚙️ Settings
-        </button>
+    <Router>
+      <div className="flex min-h-screen bg-[#0B0C10] text-gray-100 font-sans">
+        <Sidebar />
+        <main className="flex-1 ml-64 p-8 overflow-y-auto">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/history" element={<History />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/status" element={<Status />} />
+          </Routes>
+        </main>
       </div>
-
-      {/* Pages */}
-      <div className="pt-10">
-        {page === "home" && <Home />}
-        {page === "settings" && <Settings />}
-      </div>
-
-    </div>
+    </Router>
   );
 }
+
+export default App;

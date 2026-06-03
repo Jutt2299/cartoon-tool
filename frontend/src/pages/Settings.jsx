@@ -2,264 +2,183 @@ import { useState, useEffect } from "react";
 import api from "../api";
 
 export default function Settings() {
-  const [kaggleAccounts, setKaggleAccounts] = useState([]);
-  const [elevenLabsKeys, setElevenLabsKeys] = useState([]);
-  const [newKaggle, setNewKaggle] = useState({ username: "", token: "" });
-  const [newElevenKey, setNewElevenKey] = useState("");
+  const [statusData, setStatusData] = useState(null);
+  
+  // Forms state
+  const [kaggleUser, setKaggleUser] = useState("");
+  const [kaggleToken, setKaggleToken] = useState("");
+  const [elevenKey, setElevenKey] = useState("");
+  
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [msg, setMsg] = useState({ text: "", type: "" });
+
+  const loadStatus = async () => {
+    try {
+      const data = await api.getStatus();
+      setStatusData(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     loadStatus();
   }, []);
 
-  const loadStatus = async () => {
-    try {
-      const data = await api.getStatus();
-      setKaggleAccounts(data.kaggle_accounts);
-      setElevenLabsKeys(data.elevenlabs_keys);
-    } catch (err) {
-      showMessage("Status load nahi hua!", "error");
-    }
+  const showMsg = (text, type="success") => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg({ text: "", type: "" }), 3000);
   };
 
-  const showMessage = (msg, type = "success") => {
-    setMessage({ text: msg, type });
-    setTimeout(() => setMessage(""), 3000);
-  };
-
-  // ── Kaggle ──────────────────────────
-
-  const addKaggleAccount = async () => {
-    if (!newKaggle.username || !newKaggle.token) {
-      showMessage("Username aur Token dono chahiye!", "error");
-      return;
-    }
+  const handleAddKaggle = async (e) => {
+    e.preventDefault();
     setLoading(true);
     try {
-      await api.addKaggleAccount(newKaggle.username, newKaggle.token);
-      setNewKaggle({ username: "", token: "" });
-      await loadStatus();
-      showMessage("Kaggle account add ho gaya! ✅");
+      await api.addKaggleAccount(kaggleUser, kaggleToken);
+      showMsg("Kaggle account added!");
+      setKaggleUser("");
+      setKaggleToken("");
+      loadStatus();
     } catch (err) {
-      showMessage("Account add nahi hua!", "error");
+      showMsg("Error adding account", "error");
     }
     setLoading(false);
   };
 
-  const deleteKaggleAccount = async (username) => {
-    if (!confirm(`${username} delete karna chahte ho?`)) return;
+  const handleDeleteKaggle = async (username) => {
     try {
       await api.deleteKaggleAccount(username);
-      await loadStatus();
-      showMessage("Account delete ho gaya!");
+      showMsg("Account deleted");
+      loadStatus();
     } catch (err) {
-      showMessage("Delete nahi hua!", "error");
+      showMsg("Error deleting", "error");
     }
   };
 
-  // ── ElevenLabs ──────────────────────
-
-  const addElevenLabsKey = async () => {
-    if (!newElevenKey) {
-      showMessage("API Key daalo!", "error");
-      return;
-    }
+  const handleAddEleven = async (e) => {
+    e.preventDefault();
     setLoading(true);
     try {
-      await api.addElevenLabsKey(newElevenKey);
-      setNewElevenKey("");
-      await loadStatus();
-      showMessage("ElevenLabs key add ho gayi! ✅");
+      await api.addElevenLabsKey(elevenKey);
+      showMsg("ElevenLabs key added!");
+      setElevenKey("");
+      loadStatus();
     } catch (err) {
-      showMessage("Key add nahi hui!", "error");
+      showMsg("Error adding key", "error");
     }
     setLoading(false);
   };
 
-  const deleteElevenLabsKey = async (keyId) => {
-    if (!confirm("Yeh key delete karna chahte ho?")) return;
+  const handleDeleteEleven = async (id) => {
     try {
-      await api.deleteElevenLabsKey(keyId);
-      await loadStatus();
-      showMessage("Key delete ho gayi!");
+      await api.deleteElevenLabsKey(id);
+      showMsg("Key deleted");
+      loadStatus();
     } catch (err) {
-      showMessage("Delete nahi hua!", "error");
+      showMsg("Error deleting", "error");
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white pt-20 px-6 pb-10">
-      <div className="max-w-3xl mx-auto">
+    <div className="max-w-4xl mx-auto pb-12 animate-fade-in">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-white mb-2">API Settings</h1>
+        <p className="text-gray-400">Manage your Kaggle and ElevenLabs credentials for AI generation.</p>
+      </div>
 
-        <h1 className="text-2xl font-bold mb-8">⚙️ Settings</h1>
+      {msg.text && (
+        <div className={`mb-6 p-4 rounded-xl border ${msg.type === "error" ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-green-500/10 border-green-500/30 text-green-400"}`}>
+          {msg.text}
+        </div>
+      )}
 
-        {/* Message */}
-        {message && (
-          <div className={`mb-6 px-4 py-3 rounded-lg text-sm font-medium ${
-            message.type === "error"
-              ? "bg-red-500/20 text-red-400 border border-red-500/30"
-              : "bg-green-500/20 text-green-400 border border-green-500/30"
-          }`}>
-            {message.text}
-          </div>
-        )}
-
-        {/* ── Kaggle Accounts ── */}
-        <div className="bg-gray-900 rounded-2xl p-6 mb-6 border border-gray-800">
-          <h2 className="text-lg font-semibold mb-5">
-            🖥️ Kaggle Accounts
-          </h2>
-
-          {/* Existing accounts */}
-          <div className="space-y-3 mb-5">
-            {kaggleAccounts.length === 0 && (
-              <p className="text-gray-500 text-sm">
-                Koi account nahi — neeche add karo
-              </p>
-            )}
-            {kaggleAccounts.map((acc, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-2.5 h-2.5 rounded-full ${
-                    acc.is_active ? "bg-green-400 animate-pulse" : "bg-gray-500"
-                  }`}/>
-                  <div>
-                    <p className="text-sm font-medium">{acc.username}</p>
-                    <p className="text-xs text-gray-400">
-                      {acc.hours_remaining?.toFixed(1) || 30}hr remaining
-                    </p>
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className="flex items-center gap-4">
-                  <div className="w-24 bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className="bg-blue-500 h-1.5 rounded-full"
-                      style={{
-                        width: `${((acc.hours_used || 0) / 30) * 100}%`
-                      }}
-                    />
-                  </div>
-                  <button
-                    onClick={() => deleteKaggleAccount(acc.username)}
-                    className="text-red-400 hover:text-red-300 text-xs"
-                  >
-                    Delete
-                  </button>
-                </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Kaggle Section */}
+        <div className="space-y-6">
+          <div className="glass-dark rounded-2xl p-6 border border-gray-800">
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <span className="text-blue-400">📊</span> Kaggle Accounts
+            </h2>
+            
+            <form onSubmit={handleAddKaggle} className="space-y-4 mb-6">
+              <div>
+                <input 
+                  type="text" placeholder="Username" required
+                  value={kaggleUser} onChange={e => setKaggleUser(e.target.value)}
+                  className="w-full glass bg-[#0B0C10]/80 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-white placeholder-gray-600"
+                />
               </div>
-            ))}
-          </div>
-
-          {/* Add new account */}
-          <div className="border-t border-gray-800 pt-5">
-            <p className="text-sm text-gray-400 mb-3">Naya account add karo:</p>
-            <div className="flex gap-3 mb-3">
-              <input
-                type="text"
-                placeholder="Kaggle Username"
-                value={newKaggle.username}
-                onChange={e => setNewKaggle({ ...newKaggle, username: e.target.value })}
-                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div className="flex gap-3">
-              <input
-                type="password"
-                placeholder="Kaggle API Token"
-                value={newKaggle.token}
-                onChange={e => setNewKaggle({ ...newKaggle, token: e.target.value })}
-                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
-              <button
-                onClick={addKaggleAccount}
-                disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-              >
-                + Add
+              <div>
+                <input 
+                  type="password" placeholder="API Token" required
+                  value={kaggleToken} onChange={e => setKaggleToken(e.target.value)}
+                  className="w-full glass bg-[#0B0C10]/80 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-white placeholder-gray-600"
+                />
+              </div>
+              <button disabled={loading} type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg text-sm font-medium transition disabled:opacity-50">
+                Add Kaggle Account
               </button>
+            </form>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Saved Accounts</h3>
+              {!statusData ? <p className="text-sm text-gray-500">Loading...</p> : 
+                statusData.kaggle_accounts.length === 0 ? <p className="text-sm text-gray-500">No accounts saved</p> :
+                statusData.kaggle_accounts.map(acc => (
+                  <div key={acc.username} className="flex items-center justify-between glass bg-white/5 p-3 rounded-lg border border-white/5">
+                    <div>
+                      <div className="font-medium text-gray-200">{acc.username}</div>
+                      <div className="text-xs text-gray-500">{acc.hours_used.toFixed(1)} hrs used</div>
+                    </div>
+                    <button onClick={() => handleDeleteKaggle(acc.username)} className="text-red-400 hover:text-red-300 text-sm font-medium px-2 py-1 rounded hover:bg-red-500/10 transition">
+                      Remove
+                    </button>
+                  </div>
+                ))
+              }
             </div>
           </div>
         </div>
 
-        {/* ── ElevenLabs Keys ── */}
-        <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800">
-          <h2 className="text-lg font-semibold mb-5">
-            🎙️ ElevenLabs API Keys
-          </h2>
-
-          {/* Existing keys */}
-          <div className="space-y-3 mb-5">
-            {elevenLabsKeys.length === 0 && (
-              <p className="text-gray-500 text-sm">
-                Koi key nahi — neeche add karo
-              </p>
-            )}
-            {elevenLabsKeys.map((key, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-2.5 h-2.5 rounded-full ${
-                    key.is_active ? "bg-green-400 animate-pulse" : "bg-gray-500"
-                  }`}/>
-                  <div>
-                    <p className="text-sm font-medium">Key #{key.id}</p>
-                    <p className="text-xs text-gray-400">
-                      {key.chars_remaining} chars remaining
-                    </p>
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className="flex items-center gap-4">
-                  <div className="w-24 bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className="bg-purple-500 h-1.5 rounded-full"
-                      style={{
-                        width: `${(key.chars_used / 10000) * 100}%`
-                      }}
-                    />
-                  </div>
-                  <button
-                    onClick={() => deleteElevenLabsKey(key.id)}
-                    className="text-red-400 hover:text-red-300 text-xs"
-                  >
-                    Delete
-                  </button>
-                </div>
+        {/* ElevenLabs Section */}
+        <div className="space-y-6">
+          <div className="glass-dark rounded-2xl p-6 border border-gray-800">
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <span className="text-purple-400">🎙️</span> ElevenLabs Keys
+            </h2>
+            
+            <form onSubmit={handleAddEleven} className="space-y-4 mb-6">
+              <div>
+                <input 
+                  type="password" placeholder="API Key" required
+                  value={elevenKey} onChange={e => setElevenKey(e.target.value)}
+                  className="w-full glass bg-[#0B0C10]/80 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500 text-white placeholder-gray-600"
+                />
               </div>
-            ))}
-          </div>
-
-          {/* Add new key */}
-          <div className="border-t border-gray-800 pt-5">
-            <p className="text-sm text-gray-400 mb-3">Naya key add karo:</p>
-            <div className="flex gap-3">
-              <input
-                type="password"
-                placeholder="ElevenLabs API Key"
-                value={newElevenKey}
-                onChange={e => setNewElevenKey(e.target.value)}
-                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-              />
-              <button
-                onClick={addElevenLabsKey}
-                disabled={loading}
-                className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-              >
-                + Add
+              <button disabled={loading} type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg text-sm font-medium transition disabled:opacity-50">
+                Add API Key
               </button>
+            </form>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Saved Keys</h3>
+              {!statusData ? <p className="text-sm text-gray-500">Loading...</p> : 
+                statusData.elevenlabs_keys.length === 0 ? <p className="text-sm text-gray-500">No keys saved</p> :
+                statusData.elevenlabs_keys.map(key => (
+                  <div key={key.id} className="flex items-center justify-between glass bg-white/5 p-3 rounded-lg border border-white/5">
+                    <div>
+                      <div className="font-medium text-gray-200">...{key.api_key.slice(-4)}</div>
+                      <div className="text-xs text-gray-500">{key.chars_used} chars used</div>
+                    </div>
+                    <button onClick={() => handleDeleteEleven(key.id)} className="text-red-400 hover:text-red-300 text-sm font-medium px-2 py-1 rounded hover:bg-red-500/10 transition">
+                      Remove
+                    </button>
+                  </div>
+                ))
+              }
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

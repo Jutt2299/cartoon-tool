@@ -85,6 +85,13 @@ async def register_url(request: RegisterURLRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+from fastapi.staticfiles import StaticFiles
+from database import EpisodeHistory
+import video_processor
+
+os.makedirs("/data/media", exist_ok=True)
+app.mount("/media", StaticFiles(directory="/data/media"), name="media")
+
 # ─────────────────────────────────────
 # Video Generation Routes
 # ─────────────────────────────────────
@@ -94,52 +101,66 @@ async def generate_episode(request: ScriptRequest):
     """Complete episode generate karo"""
     
     try:
-        # Step 1: Script parse karo
         print("Script parse ho rahi hai...")
         scenes = script_parser.process_script(request.script_text)
-        print(f"Total scenes: {len(scenes)}")
         
-        # Step 2: Active Kaggle URL lo
-        kaggle_url = kaggle_manager.get_active_url()
-        if not kaggle_url:
-            raise HTTPException(
-                status_code=400,
-                detail="Kaggle session active nahi hai! Pehle Start Session dabao."
-            )
+        # NOTE: Hum real Kaggle calls skip kar rahe hain Presentation ke liye
+        # Taake video instantly render ho aur Shorts/Thumbnails showcase hon
+        print("Processing full pipeline (Dummy Video mode for presentation)...")
         
-        results = []
+        episode_id = f"ep_{int(datetime.now().timestamp())}"
+        output_dir = f"/data/media/{episode_id}"
         
-        for scene in scenes:
-            print(f"Scene {scene['scene_number']} process ho rahi hai...")
-            
-            # Step 3: Video generate karo (Kaggle se)
-            video_response = await httpx.AsyncClient().post(
-                f"{kaggle_url}/generate",
-                json={
-                    "prompt": scene["video_prompt"],
-                    "scene_id": scene["scene_number"]
-                },
-                timeout=300  # 5 min per scene
-            )
-            
-            # Step 4: Audio generate karo (ElevenLabs se)
-            audio_files = elevenlabs_manager.process_scene_audio(scene)
-            
-            results.append({
-                "scene_number": scene["scene_number"],
-                "video_status": video_response.json(),
-                "audio_count": len(audio_files)
-            })
+        # This will download demo video, translate & burn captions, make thumbnail & shorts
+        media_results = video_processor.process_full_pipeline(
+            request.episode_name, scenes, output_dir
+        )
+        
+        # Base URL construction assuming typical proxy, but relative paths are safer
+        video_url = f"/media/{episode_id}/final_video.mp4"
+        thumbnail_url = f"/media/{episode_id}/thumbnail.jpg"
+        shorts_urls = [f"/media/{episode_id}/short_0.mp4", f"/media/{episode_id}/short_1.mp4"]
+        
+        # Save to Database
+        db = Session()
+        history = EpisodeHistory(
+            title=request.episode_name,
+            video_url=video_url,
+            thumbnail_url=thumbnail_url,
+            shorts_urls=json.dumps(shorts_urls),
+            created_at=datetime.now().isoformat()
+        )
+        db.add(history)
+        db.commit()
+        db.close()
         
         return {
             "status": "success",
             "episode": request.episode_name,
-            "total_scenes": len(scenes),
-            "scenes": results
+            "video_url": video_url,
+            "thumbnail_url": thumbnail_url,
+            "shorts": shorts_urls
         }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/history")
+async def get_history():
+    db = Session()
+    records = db.query(EpisodeHistory).order_by(EpisodeHistory.id.desc()).all()
+    results = []
+    for r in records:
+        results.append({
+            "id": r.id,
+            "title": r.title,
+            "video_url": r.video_url,
+            "thumbnail_url": r.thumbnail_url,
+            "shorts_urls": json.loads(r.shorts_urls) if r.shorts_urls else [],
+            "created_at": r.created_at
+        })
+    db.close()
+    return {"history": results}
 
 # ─────────────────────────────────────
 # Settings Routes

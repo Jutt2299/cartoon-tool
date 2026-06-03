@@ -29,6 +29,15 @@ class ElevenLabsKey(Base):
     chars_used = Column(Integer, default=0)
     is_active = Column(Integer, default=1)
 
+class EpisodeHistory(Base):
+    __tablename__ = "episode_history"
+    id = Column(Integer, primary_key=True)
+    title = Column(String)
+    video_url = Column(String)
+    thumbnail_url = Column(String)
+    shorts_urls = Column(String)
+    created_at = Column(String)
+
 import os
 db_url = "sqlite:////data/cartoon.db" if os.path.exists("/data") or os.environ.get("MODAL_IMAGE_ID") else "sqlite:///cartoon.db"
 engine = create_engine(db_url)

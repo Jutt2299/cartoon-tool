@@ -250,11 +250,15 @@ class KaggleManager:
                             "import asyncio\n",
                             "import threading\n",
                             "import uvicorn\n",
+                            "import os\n",
                             "from fastapi import FastAPI, HTTPException\n",
                             "from pydantic import BaseModel\n",
                             "import time\n",
                             "\n",
                             "app = FastAPI()\n",
+                            "\n",
+                            "last_activity = time.time()\n",
+                            "IDLE_TIMEOUT = 5 * 60  # 5 minutes in seconds\n",
                             "\n",
                             "class GenerateRequest(BaseModel):\n",
                             "    prompt: str\n",
@@ -263,16 +267,30 @@ class KaggleManager:
                             "\n",
                             "@app.post(\"/generate\")\n",
                             "def generate_video(request: GenerateRequest):\n",
+                            "    global last_activity\n",
+                            "    last_activity = time.time()\n",
                             "    print(f\"Received generation request: {request.prompt} for scene {request.scene_id}\")\n",
                             "    time.sleep(10)\n",
                             "    output_file = f\"/kaggle/working/{request.scene_id}.mp4\"\n",
                             "    with open(output_file, 'wb') as f:\n",
                             "        f.write(b\"Dummy video content\")\n",
+                            "    last_activity = time.time() # update again after finishing\n",
                             "    return {\"status\": \"success\", \"video_path\": output_file}\n",
                             "\n",
                             "@app.get(\"/health\")\n",
                             "def health():\n",
                             "    return {\"status\": \"alive\"}\n",
+                            "\n",
+                            "def idle_checker():\n",
+                            "    global last_activity\n",
+                            "    while True:\n",
+                            "        time.sleep(30)\n",
+                            "        if time.time() - last_activity > IDLE_TIMEOUT:\n",
+                            "            print(\"Idle timeout reached (5 mins). Shutting down kernel to save quota...\")\n",
+                            "            os._exit(0)\n",
+                            "\n",
+                            "idle_thread = threading.Thread(target=idle_checker, daemon=True)\n",
+                            "idle_thread.start()\n",
                             "\n",
                             "def run_server():\n",
                             "    uvicorn.run(app, host=\"0.0.0.0\", port=8000)\n",
@@ -362,7 +380,10 @@ class KaggleManager:
                 json.dump(notebook_content, f, indent=2)
             
             # 4. Push notebook
-            subprocess.run(["kaggle", "kernels", "push", "-p", tmpdir], check=True, capture_output=True, text=True)
+            try:
+                result = subprocess.run(["kaggle", "kernels", "push", "-p", tmpdir], capture_output=True, text=True, check=True)
+            except subprocess.CalledProcessError as e:
+                raise Exception(f"Kaggle CLI Error: {e.stderr.strip() if e.stderr else str(e)}")
             
         return {"status": "success", "message": "Notebook created and pushed successfully."}
 

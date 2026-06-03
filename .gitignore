@@ -5,3 +5,7 @@ node_modules/
 *.pyc
 .DS_Store
 cartoon.db
+
+kaggle_notebook/notebook_ready.ipynb
+backend/test_push.py
+backend/test_push_2.py

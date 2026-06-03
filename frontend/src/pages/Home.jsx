@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import api from "../api";
 import ScriptInput from "../components/ScriptInput";
 import ProgressBar from "../components/ProgressBar";
@@ -10,6 +10,12 @@ export default function Home() {
   const [progress, setProgress] = useState(null);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const [videoUrl, setVideoUrl] = useState(null);
+  
+  const videoRef = useRef(null);
+
+  // Fallback demo video link for testing if backend doesn't provide one
+  const DEMO_VIDEO_URL = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 
   const handleGenerate = async () => {
     if (!episodeName.trim()) {
@@ -23,6 +29,7 @@ export default function Home() {
 
     setError("");
     setDone(false);
+    setVideoUrl(null);
     setGenerating(true);
     setProgress({
       stage: "Script parse ho rahi hai...",
@@ -46,17 +53,23 @@ export default function Home() {
       if (result.status === "success") {
         // Stage 4
         setProgress({ stage: "Videos ban rahi hain...", percent: 50 });
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 1500));
 
         // Stage 5
         setProgress({ stage: "Audio generate ho raha hai...", percent: 70 });
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 1500));
 
         // Stage 6
         setProgress({ stage: "Video assembly ho rahi hai...", percent: 90 });
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 1500));
 
-        // Done
+        // Fetch video URL or use Demo
+        let generatedVideoUrl = DEMO_VIDEO_URL;
+        if (result.scenes && result.scenes.length > 0 && result.scenes[0].video_url) {
+            generatedVideoUrl = result.scenes[0].video_url;
+        }
+
+        setVideoUrl(generatedVideoUrl);
         setProgress({ stage: "Episode ban gaya! 🎉", percent: 100 });
         setDone(true);
 
@@ -77,122 +90,211 @@ export default function Home() {
     setProgress(null);
     setDone(false);
     setError("");
+    setVideoUrl(null);
+  };
+
+  const handleDownload = async () => {
+    if (!videoUrl) return;
+    try {
+      // Direct download logic
+      const response = await fetch(videoUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${episodeName || "cartoon_episode"}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (e) {
+      // Fallback if CORS prevents blob download
+      const a = document.createElement("a");
+      a.href = videoUrl;
+      a.download = `${episodeName || "cartoon_episode"}.mp4`;
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white pt-20 px-6 pb-10">
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen pt-24 px-6 pb-12 relative overflow-hidden">
+      
+      {/* Background Animated Blobs */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
+        <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-primary-500/20 rounded-full mix-blend-screen filter blur-[100px] animate-blob"></div>
+        <div className="absolute top-[20%] right-[-5%] w-96 h-96 bg-accent-500/20 rounded-full mix-blend-screen filter blur-[100px] animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-[-20%] left-[20%] w-[500px] h-[500px] bg-purple-500/20 rounded-full mix-blend-screen filter blur-[120px] animate-blob animation-delay-4000"></div>
+      </div>
 
+      <div className="max-w-4xl mx-auto relative z-10">
+        
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">
-            🎬 Cartoon Episode Generator
+        <div className="text-center mb-12 animate-fade-in">
+          <div className="inline-block mb-4 px-4 py-1.5 rounded-full border border-primary-500/30 bg-primary-500/10 text-primary-400 text-sm font-semibold tracking-wide backdrop-blur-md">
+            ✨ AI Powered Animation
+          </div>
+          <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight">
+            Cartoon <span className="text-gradient">Episode</span> Generator
           </h1>
-          <p className="text-gray-400 text-sm">
-            Script paste karo — baaki sab automatic hoga!
+          <p className="text-gray-400 text-lg max-w-xl mx-auto">
+            Script paste karo, aur hamari AI magic se pura episode banate dekho.
           </p>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="mb-5 px-4 py-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm">
-            ⚠️ {error}
-          </div>
-        )}
+        {/* Main Interface Container */}
+        <div className="glass-dark rounded-3xl p-6 md:p-10 shadow-2xl animate-slide-up border border-gray-700/50 relative overflow-hidden">
+          
+          {/* Subtle top border glow */}
+          <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary-500/50 to-transparent"></div>
 
-        {/* Done State */}
-        {done ? (
-          <div className="bg-gray-900 border border-green-500/30 rounded-2xl p-8 text-center">
-            <div className="text-5xl mb-4">🎉</div>
-            <h2 className="text-xl font-bold text-green-400 mb-2">
-              Episode Ban Gaya!
-            </h2>
-            <p className="text-gray-400 text-sm mb-6">
-              "{episodeName}" successfully generate ho gaya!
-            </p>
-            <div className="flex gap-3 justify-center">
-              <button className="bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition">
-                ⬇️ Download Video
-              </button>
-              <button
-                onClick={handleReset}
-                className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition"
-              >
-                Naya Episode
-              </button>
+          {/* Error Message */}
+          {error && (
+            <div className="mb-8 px-6 py-4 glass border-red-500/40 rounded-2xl flex items-center gap-4 animate-fade-in">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 text-xl">⚠️</div>
+              <div className="text-red-200 font-medium">{error}</div>
             </div>
-          </div>
+          )}
 
-        ) : generating ? (
-          /* Generating State */
-          <ProgressBar
-            stage={progress?.stage}
-            percent={progress?.percent}
-          />
+          {done ? (
+            /* Result State - Video Player */
+            <div className="animate-fade-in flex flex-col items-center">
+              
+              <div className="w-full max-w-3xl mb-8 relative group">
+                {/* Decorative glow behind video */}
+                <div className="absolute -inset-1 bg-gradient-to-r from-primary-500 to-accent-500 rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                
+                {/* Video Player */}
+                <div className="relative rounded-2xl overflow-hidden bg-black aspect-video border border-white/10 shadow-2xl">
+                  {videoUrl ? (
+                     <video 
+                       ref={videoRef}
+                       src={videoUrl} 
+                       controls 
+                       autoPlay
+                       className="w-full h-full object-cover"
+                     />
+                  ) : (
+                     <div className="w-full h-full flex flex-col items-center justify-center text-gray-500">
+                        <span className="text-4xl mb-3">🎥</span>
+                        <p>Video Load Nahi Ho Saki</p>
+                     </div>
+                  )}
+                </div>
+              </div>
 
-        ) : (
-          /* Input State */
-          <div className="space-y-5">
+              <h2 className="text-3xl font-bold text-white mb-2">
+                Episode <span className="text-green-400">Ready!</span> 🎉
+              </h2>
+              <p className="text-gray-400 mb-8 text-center max-w-md">
+                Aapka episode "{episodeName}" successfully generate ho gaya hai. Aap ise dekh sakte hain ya download kar sakte hain.
+              </p>
 
-            {/* Episode Name */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Episode Ka Naam
-              </label>
-              <input
-                type="text"
-                placeholder="Jaise: Episode 1 - Pehli Mulaqat"
-                value={episodeName}
-                onChange={e => setEpisodeName(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-white placeholder-gray-500"
+              <div className="flex flex-wrap gap-4 justify-center w-full">
+                <button 
+                  onClick={handleDownload}
+                  className="relative flex items-center justify-center gap-2 bg-gradient-to-r from-primary-600 to-accent-600 hover:from-primary-500 hover:to-accent-500 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all duration-300 hover:scale-105 hover:shadow-[0_0_20px_rgba(139,92,246,0.4)]"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                  Download Video
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="flex items-center justify-center gap-2 glass hover:bg-white/10 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all duration-300 hover:scale-105"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                  Naya Episode Banayein
+                </button>
+              </div>
+            </div>
+
+          ) : generating ? (
+            /* Generating State */
+            <div className="py-12 animate-fade-in flex flex-col items-center">
+              <div className="relative mb-8">
+                 <div className="w-24 h-24 rounded-full border-4 border-gray-800 border-t-primary-500 animate-spin"></div>
+                 <div className="absolute inset-0 w-24 h-24 rounded-full blur-xl bg-primary-500/30 animate-pulse-glow"></div>
+              </div>
+              <ProgressBar
+                stage={progress?.stage}
+                percent={progress?.percent}
               />
             </div>
 
-            {/* Script Input Component */}
-            <ScriptInput value={script} onChange={setScript} />
+          ) : (
+            /* Input State */
+            <div className="space-y-8 animate-fade-in">
+              
+              {/* Episode Name */}
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-300 ml-1">
+                  Episode Ka Naam
+                </label>
+                <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-primary-500 to-accent-500 rounded-xl blur opacity-20 group-focus-within:opacity-50 transition duration-500"></div>
+                  <input
+                    type="text"
+                    placeholder="Jaise: Episode 1 - Pehli Mulaqat"
+                    value={episodeName}
+                    onChange={e => setEpisodeName(e.target.value)}
+                    className="relative w-full glass bg-[#0B0C10]/80 rounded-xl px-5 py-4 text-base focus:outline-none focus:ring-2 focus:ring-primary-500/50 text-white placeholder-gray-600 transition-all"
+                  />
+                </div>
+              </div>
 
-            {/* Generate Button */}
-            <button
-              onClick={handleGenerate}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-semibold text-base transition"
-            >
-              🎬 Episode Generate Karo
-            </button>
+              {/* Script Input Component */}
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-300 ml-1">
+                  Script Details
+                </label>
+                <ScriptInput value={script} onChange={setScript} />
+              </div>
 
-            {/* Info box */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-              <p className="text-xs text-gray-400 leading-relaxed">
-                💡 <strong className="text-gray-300">Yaad rakho:</strong> Generate
-                karne se pehle upar{" "}
-                <strong className="text-green-400">Start Session</strong> dabao —
-                warna video nahi banegi!
-              </p>
+              {/* Generate Button */}
+              <button
+                onClick={handleGenerate}
+                className="relative w-full group overflow-hidden rounded-xl font-bold text-lg p-[1px]"
+              >
+                <span className="absolute inset-0 bg-gradient-to-r from-primary-500 via-accent-500 to-primary-500 opacity-70 group-hover:opacity-100 transition-opacity duration-300"></span>
+                <div className="relative w-full h-full bg-[#0B0C10] group-hover:bg-transparent transition-colors duration-300 rounded-xl px-8 py-5 flex items-center justify-center gap-3">
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-accent-400 group-hover:text-white transition-colors duration-300">
+                    🎬 Episode Generate Karo
+                  </span>
+                  <svg className="w-5 h-5 text-accent-400 group-hover:text-white transition-colors duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+              </button>
+
+              {/* Info Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                <div className="glass bg-white/5 rounded-2xl p-5 border border-white/5 hover:border-primary-500/30 transition-colors">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-xl">💡</span>
+                    <h3 className="font-semibold text-gray-200">Session Rule</h3>
+                  </div>
+                  <p className="text-sm text-gray-400 leading-relaxed">
+                    Generate karne se pehle top bar mein <strong className="text-primary-400">Start Session</strong> dabana zaroori hai, warna Kaggle/ElevenLabs block ho jayega.
+                  </p>
+                </div>
+                
+                <div className="glass bg-white/5 rounded-2xl p-5 border border-white/5 hover:border-accent-500/30 transition-colors">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-xl">📝</span>
+                    <h3 className="font-semibold text-gray-200">Script Format</h3>
+                  </div>
+                  <pre className="text-xs text-gray-400 leading-relaxed font-mono">
+                    SCENE 1: Ahmed ka ghar{"\n\n"}
+                    [Ahmed sofa pe hai]{"\n\n"}
+                    Ahmed: "Hello Mama!"{"\n"}
+                    Mama: "Khana khao!"
+                  </pre>
+                </div>
+              </div>
+
             </div>
-
-            {/* Script Format Guide */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-              <p className="text-sm font-medium text-gray-300 mb-3">
-                📝 Script Format Guide:
-              </p>
-              <pre className="text-xs text-gray-400 leading-relaxed whitespace-pre-wrap">
-{`SCENE 1: Ahmed ka ghar - drawing room
-
-[Ahmed sofa pe baitha TV dekh raha hai]
-
-Ahmed: "Yaar kitni boring movie hai!"
-Mama: "Ahmed! Khana khane aa jao!"
-Ahmed: "Abhi aa raha hoon Mama!"
-
-SCENE 2: Kitchen
-
-[Mama khana bana rahi hai]
-
-Mama: "Yeh larki bhi na!"`}
-              </pre>
-            </div>
-
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

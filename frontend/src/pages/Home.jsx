@@ -32,18 +32,9 @@ export default function Home() {
     setVideoUrl(null);
     setGenerating(true);
     setProgress({
-      stage: "Script parse ho rahi hai...",
+      stage: "Script submit ho rahi hai...",
       percent: 5
     });
-
-    try {
-      // Stage 1
-      setProgress({ stage: "Script scenes mein toot rahi hai...", percent: 10 });
-      await new Promise(r => setTimeout(r, 1000));
-
-    setError("");
-    setDone(false);
-    setProgress({ stage: "Script verify ho rahi hai...", percent: 10 });
 
     try {
       // Step 1: Start background job

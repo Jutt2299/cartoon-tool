@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+kaggle
+requests
+httpx
+python-dotenv
+sqlalchemy
+aiofiles
+pydantic

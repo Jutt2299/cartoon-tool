@@ -87,7 +87,6 @@ async def register_url(request: RegisterURLRequest):
 
 from fastapi.staticfiles import StaticFiles
 from database import EpisodeHistory
-import video_processor
 
 os.makedirs("/data/media", exist_ok=True)
 app.mount("/media", StaticFiles(directory="/data/media"), name="media")
@@ -110,6 +109,8 @@ async def generate_episode(request: ScriptRequest):
         
         episode_id = f"ep_{int(datetime.now().timestamp())}"
         output_dir = f"/data/media/{episode_id}"
+        
+        import video_processor
         
         # This will download demo video, translate & burn captions, make thumbnail & shorts
         media_results = video_processor.process_full_pipeline(

@@ -139,9 +139,31 @@ export default function Home() {
           <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight">
             Cartoon <span className="text-gradient">Episode</span> Generator
           </h1>
-          <p className="text-gray-400 text-lg max-w-xl mx-auto">
+          <p className="text-gray-400 text-lg max-w-xl mx-auto mb-10">
             Script paste karo, aur hamari AI magic se pura episode banate dekho.
           </p>
+
+          {/* How It Works */}
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4 mb-12 max-w-2xl mx-auto text-sm font-medium">
+            <div className="flex flex-col items-center gap-2 glass px-6 py-4 rounded-2xl border-gray-800/50 flex-1 w-full relative">
+              <div className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-lg mb-1">📝</div>
+              <div className="text-gray-200">1. Write Script</div>
+              {/* Arrow */}
+              <div className="hidden md:block absolute -right-3 top-1/2 -translate-y-1/2 text-gray-600">→</div>
+            </div>
+            
+            <div className="flex flex-col items-center gap-2 glass px-6 py-4 rounded-2xl border-gray-800/50 flex-1 w-full relative">
+              <div className="w-10 h-10 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center text-lg mb-1">⚡</div>
+              <div className="text-gray-200">2. Generate</div>
+              {/* Arrow */}
+              <div className="hidden md:block absolute -right-3 top-1/2 -translate-y-1/2 text-gray-600">→</div>
+            </div>
+
+            <div className="flex flex-col items-center gap-2 glass px-6 py-4 rounded-2xl border-gray-800/50 flex-1 w-full">
+              <div className="w-10 h-10 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-lg mb-1">⬇️</div>
+              <div className="text-gray-200">3. Download</div>
+            </div>
+          </div>
         </div>
 
         {/* Main Interface Container */}

@@ -282,14 +282,14 @@ export default function Home() {
               {/* Generate Button */}
               <button
                 onClick={handleGenerate}
-                className="relative w-full group overflow-hidden rounded-xl font-bold text-lg p-[1px]"
+                className="relative w-full group overflow-hidden rounded-xl font-bold text-lg text-white shadow-lg shadow-primary-500/20 transition-all duration-300 hover:shadow-primary-500/40 hover:-translate-y-1"
               >
-                <span className="absolute inset-0 bg-gradient-to-r from-primary-500 via-accent-500 to-primary-500 opacity-70 group-hover:opacity-100 transition-opacity duration-300"></span>
-                <div className="relative w-full h-full bg-[#0B0C10] group-hover:bg-transparent transition-colors duration-300 rounded-xl px-8 py-5 flex items-center justify-center gap-3">
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-accent-400 group-hover:text-white transition-colors duration-300">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary-600 to-accent-600 group-hover:from-primary-500 group-hover:to-accent-500 transition-colors duration-300"></div>
+                <div className="relative w-full h-full px-8 py-5 flex items-center justify-center gap-3">
+                  <span>
                     🎬 Episode Generate Karo
                   </span>
-                  <svg className="w-5 h-5 text-accent-400 group-hover:text-white transition-colors duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                  <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                 </div>
               </button>
 

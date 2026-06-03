@@ -5,6 +5,8 @@ import { Power } from "lucide-react";
 export default function Header() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [startTime, setStartTime] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
 
   const loadStatus = async () => {
     try {
@@ -21,8 +23,21 @@ export default function Header() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    let timer;
+    if (loading && startTime) {
+      timer = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - startTime) / 1000));
+      }, 1000);
+    } else {
+      setElapsed(0);
+    }
+    return () => clearInterval(timer);
+  }, [loading, startTime]);
+
   const handleStart = async () => {
     setLoading(true);
+    setStartTime(Date.now());
     try {
       await api.startSession();
       await loadStatus();
@@ -30,6 +45,7 @@ export default function Header() {
       console.error(e);
     }
     setLoading(false);
+    setStartTime(null);
   };
 
   const handleStop = async () => {
@@ -87,9 +103,10 @@ export default function Header() {
             <button 
               onClick={handleStart}
               disabled={loading}
-              className="flex items-center gap-1.5 text-xs font-bold text-green-400 hover:text-green-300 transition disabled:opacity-50"
+              className="flex items-center gap-1.5 text-xs font-bold text-green-400 hover:text-green-300 transition disabled:opacity-50 min-w-[120px] justify-center"
             >
-              <Power size={14} /> START SESSION
+              <Power size={14} /> 
+              {loading ? `STARTING... (${Math.floor(elapsed / 60)}:${(elapsed % 60).toString().padStart(2, '0')})` : "START SESSION"}
             </button>
           </div>
         )}

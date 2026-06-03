@@ -9,6 +9,9 @@ export default function Settings() {
   const [kaggleToken, setKaggleToken] = useState("");
   const [elevenKey, setElevenKey] = useState("");
   
+  const [globalNgrok, setGlobalNgrok] = useState("");
+  const [globalHf, setGlobalHf] = useState("");
+  
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ text: "", type: "" });
 
@@ -16,6 +19,10 @@ export default function Settings() {
     try {
       const data = await api.getStatus();
       setStatusData(data);
+      if (data.global_settings) {
+        setGlobalNgrok(data.global_settings.ngrok_token || "");
+        setGlobalHf(data.global_settings.hf_token || "");
+      }
     } catch (err) {
       console.error(err);
     }
@@ -30,7 +37,20 @@ export default function Settings() {
     setTimeout(() => setMsg({ text: "", type: "" }), 3000);
   };
 
-    const handleAddKaggle = async (e) => {
+  const handleSaveGlobal = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await api.saveGlobalSettings(globalNgrok, globalHf);
+      showMsg("Global Tokens saved successfully!");
+      loadStatus();
+    } catch (err) {
+      showMsg("Error saving global tokens", "error");
+    }
+    setLoading(false);
+  };
+
+  const handleAddKaggle = async (e) => {
     e.preventDefault();
     setLoading(true);
     showMsg("Setting up Kaggle Notebook (Takes ~30s)...", "success");
@@ -93,6 +113,38 @@ export default function Settings() {
           {msg.text}
         </div>
       )}
+
+      {/* Global Tokens Section */}
+      <div className="mb-8 glass-dark rounded-2xl p-6 border border-gray-800">
+        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+          <span className="text-yellow-400">🌍</span> Global Tokens
+        </h2>
+        <p className="text-sm text-gray-400 mb-6">Yeh tokens sab Kaggle notebooks ke liye use honge (Ngrok tunnel aur HuggingFace model download ke liye).</p>
+        
+        <form onSubmit={handleSaveGlobal} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Ngrok Token</label>
+              <input 
+                type="password" placeholder="Ngrok Auth Token" required
+                value={globalNgrok} onChange={e => setGlobalNgrok(e.target.value)}
+                className="w-full glass bg-[#0B0C10]/80 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-yellow-500 text-white placeholder-gray-600"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">HuggingFace Token</label>
+              <input 
+                type="password" placeholder="HF Token (Read Access)" required
+                value={globalHf} onChange={e => setGlobalHf(e.target.value)}
+                className="w-full glass bg-[#0B0C10]/80 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-yellow-500 text-white placeholder-gray-600"
+              />
+            </div>
+          </div>
+          <button disabled={loading} type="submit" className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-2.5 rounded-lg text-sm font-medium transition disabled:opacity-50 mt-2">
+            Save Global Tokens
+          </button>
+        </form>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Kaggle Section */}

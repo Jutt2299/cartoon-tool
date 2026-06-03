@@ -52,6 +52,12 @@ class Job(Base):
     created_at = Column(String)
     updated_at = Column(String)
 
+class GlobalSettings(Base):
+    __tablename__ = "global_settings"
+    id = Column(Integer, primary_key=True)
+    ngrok_token = Column(String)
+    hf_token = Column(String)
+
 
 import os
 db_url = "sqlite:////data/cartoon_v2.db" if os.path.exists("/data") or os.environ.get("MODAL_IMAGE_ID") else "sqlite:///cartoon_v2.db"

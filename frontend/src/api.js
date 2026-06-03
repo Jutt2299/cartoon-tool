@@ -13,6 +13,20 @@ const api = {
     return res.json();
   },
 
+  getGlobalSettings: async () => {
+    const res = await fetch(`${BASE_URL}/settings/global`);
+    return res.json();
+  },
+
+  saveGlobalSettings: async (ngrokToken, hfToken) => {
+    const res = await fetch(`${BASE_URL}/settings/global`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ngrok_token: ngrokToken, hf_token: hfToken })
+    });
+    return res.json();
+  },
+
   getStatus: async () => {
     const res = await fetch(`${BASE_URL}/settings/status`);
     return res.json();

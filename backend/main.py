@@ -60,9 +60,44 @@ class KaggleAccountRequest(BaseModel):
 class ElevenLabsKeyRequest(BaseModel):
     api_key: str
 
+class GlobalSettingsRequest(BaseModel):
+    ngrok_token: str
+    hf_token: str
+
 class RegisterURLRequest(BaseModel):
     account_username: str
     url: str
+
+# ─────────────────────────────────────
+# Global Settings Routes
+# ─────────────────────────────────────
+@app.post("/settings/global")
+async def save_global_settings(request: GlobalSettingsRequest):
+    from database import GlobalSettings
+    db = Session()
+    settings = db.query(GlobalSettings).first()
+    if not settings:
+        settings = GlobalSettings(
+            ngrok_token=request.ngrok_token,
+            hf_token=request.hf_token
+        )
+        db.add(settings)
+    else:
+        settings.ngrok_token = request.ngrok_token
+        settings.hf_token = request.hf_token
+    db.commit()
+    db.close()
+    return {"status": "saved"}
+
+@app.get("/settings/global")
+async def get_global_settings():
+    from database import GlobalSettings
+    db = Session()
+    settings = db.query(GlobalSettings).first()
+    db.close()
+    if settings:
+        return {"ngrok_token": settings.ngrok_token, "hf_token": settings.hf_token}
+    return {"ngrok_token": "", "hf_token": ""}
 
 # ─────────────────────────────────────
 # Session Routes
@@ -395,15 +430,41 @@ async def delete_elevenlabs_key(key_id: int):
     return {"status": "deleted"}
 
 @app.get("/settings/status")
-async def get_all_status():
-    """Sab kuch ka status ek jagah"""
+async def get_status():
+    from elevenlabs import elevenlabs_manager
+    from database import GlobalSettings
+    db = Session()
     
-    kaggle_accounts = kaggle_manager.check_time_remaining()
+    # Kaggle accounts
+    kaggle_accounts = []
+    records = db.query(KaggleAccount).all()
+    for r in records:
+        kaggle_accounts.append({
+            "username": r.username,
+            "token": r.token,
+            "hours_used": r.hours_used,
+            "is_active": r.is_active,
+            "ngrok_url": r.ngrok_url
+        })
+        
+    # Global settings
+    global_set = db.query(GlobalSettings).first()
+    global_settings = {}
+    if global_set:
+        global_settings = {
+            "ngrok_token": global_set.ngrok_token,
+            "hf_token": global_set.hf_token
+        }
+    
+    db.close()
+    
     elevenlabs_keys = elevenlabs_manager.get_keys_status()
     
     return {
+        "status": "ok",
         "kaggle_accounts": kaggle_accounts,
-        "elevenlabs_keys": elevenlabs_keys
+        "elevenlabs_keys": elevenlabs_keys,
+        "global_settings": global_settings
     }
 
 # ─────────────────────────────────────

@@ -8,7 +8,7 @@ image = modal.Image.debian_slim().apt_install(
 ).pip_install(
     "fastapi", "uvicorn", "sqlalchemy", "httpx", 
     "kaggle", "requests", "python-dotenv", "aiofiles", "pydantic",
-    "moviepy==1.0.3", "Pillow", "googletrans==4.0.0-rc1", "openai-whisper"
+    "moviepy==1.0.3", "Pillow", "googletrans==4.0.0-rc1"
 )
 
 volume = modal.Volume.from_name("cartoon-db-volume", create_if_missing=True)

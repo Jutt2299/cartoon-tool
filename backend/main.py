@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional
@@ -16,17 +15,6 @@ from script_parser import script_parser
 from elevenlabs import elevenlabs_manager
 
 app = FastAPI()
-
-@app.on_event("startup")
-async def startup_event():
-    """Mount static files only after Modal volume is ready"""
-    media_dir = "/data/media" if os.path.exists("/data") else "/tmp/media"
-    os.makedirs(media_dir, exist_ok=True)
-    # Mount static files for serving videos/thumbnails
-    try:
-        app.mount("/media", StaticFiles(directory=media_dir), name="media")
-    except Exception:
-        pass  # Already mounted or directory issue
 
 # CORS — Frontend se connection allow karo
 app.add_middleware(
@@ -98,7 +86,18 @@ async def register_url(request: RegisterURLRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# Static files mounted in startup_event above
+# ─────────────────────────────────────
+# Media File Serving (Videos, Thumbnails, Shorts)
+# ─────────────────────────────────────
+
+@app.get("/media/{episode_id}/{filename}")
+async def serve_media(episode_id: str, filename: str):
+    """Serve video/thumbnail/shorts files from Modal volume"""
+    media_dir = "/data/media" if os.path.exists("/data") else "/tmp/media"
+    file_path = os.path.join(media_dir, episode_id, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path)
 
 # ─────────────────────────────────────
 # Video Generation Routes

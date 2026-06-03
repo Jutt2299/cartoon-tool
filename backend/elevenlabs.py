@@ -124,6 +124,7 @@ class ElevenLabsManager:
         for key in keys:
             result.append({
                 "id": key.id,
+                "api_key": key.api_key,
                 "chars_used": key.chars_used,
                 "chars_remaining": 10000 - key.chars_used,
                 "is_active": key.is_active

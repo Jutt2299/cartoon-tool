@@ -16,6 +16,27 @@ from elevenlabs import elevenlabs_manager
 
 app = FastAPI()
 
+# ─────────────────────────────────────
+# Modal Cloud Deployment Wrapper
+# ─────────────────────────────────────
+import modal
+
+modal_app = modal.App("cartoon-backend")
+image = modal.Image.debian_slim().apt_install(
+    "ffmpeg", "imagemagick"
+).pip_install(
+    "fastapi", "uvicorn", "sqlalchemy", "httpx", 
+    "kaggle", "requests", "python-dotenv", "aiofiles", "pydantic",
+    "moviepy==1.0.3", "Pillow", "googletrans==4.0.0-rc1"
+).add_local_dir(".", remote_path="/root")
+volume = modal.Volume.from_name("cartoon-db-volume", create_if_missing=True)
+
+@modal_app.function(image=image, volumes={"/data": volume})
+@modal.asgi_app()
+def fastapi_modal_app():
+    return app
+# ─────────────────────────────────────
+
 # CORS — Frontend se connection allow karo
 app.add_middleware(
     CORSMiddleware,

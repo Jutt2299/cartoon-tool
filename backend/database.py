@@ -39,8 +39,8 @@ class EpisodeHistory(Base):
     created_at = Column(String)
 
 import os
-db_url = "sqlite:////data/cartoon.db" if os.path.exists("/data") or os.environ.get("MODAL_IMAGE_ID") else "sqlite:///cartoon.db"
-engine = create_engine(db_url)
+db_url = "sqlite:////data/cartoon_v2.db" if os.path.exists("/data") or os.environ.get("MODAL_IMAGE_ID") else "sqlite:///cartoon_v2.db"
+engine = create_engine(db_url, connect_args={"timeout": 15})
 try:
     Base.metadata.create_all(engine)
 except Exception:

@@ -14,8 +14,8 @@ export default function Sidebar() {
   return (
     <aside className="w-64 h-screen fixed left-0 top-0 glass-dark border-r border-gray-800/50 p-6 flex flex-col z-50">
       <div className="flex items-center gap-3 mb-10">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center shadow-lg shadow-primary-500/30">
-          <span className="text-white font-bold text-xl">C</span>
+        <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-primary-500/30 flex-shrink-0">
+          <img src="/favicon.png" alt="Logo" className="w-full h-full object-cover" />
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-white">
           Cartoon<span className="text-primary-500">AI</span>

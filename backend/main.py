@@ -133,6 +133,32 @@ async def generate_episode(request: ScriptRequest):
         )
         db.add(history)
         db.commit()
+        
+        # ─────────────────────────────────────
+        # AUTO-CLEANUP: Keep only last 5 episodes
+        # ─────────────────────────────────────
+        import shutil
+        total_episodes = db.query(EpisodeHistory).count()
+        if total_episodes > 5:
+            # Find the oldest episodes to delete
+            episodes_to_delete = db.query(EpisodeHistory).order_by(EpisodeHistory.id.asc()).limit(total_episodes - 5).all()
+            for ep in episodes_to_delete:
+                # The video_url is like /media/ep_123456/final_video.mp4
+                # We need to extract the folder name and delete it
+                if ep.video_url:
+                    parts = ep.video_url.split("/")
+                    if len(parts) >= 3:
+                        folder_name = parts[2] # ep_123456
+                        folder_path = f"/data/media/{folder_name}"
+                        if os.path.exists(folder_path):
+                            try:
+                                shutil.rmtree(folder_path)
+                                print(f"Deleted old media folder: {folder_path}")
+                            except Exception as e:
+                                print(f"Error deleting {folder_path}: {e}")
+                db.delete(ep)
+            db.commit()
+            
         db.close()
         
         return {

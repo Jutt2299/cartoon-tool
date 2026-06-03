@@ -38,6 +38,21 @@ class EpisodeHistory(Base):
     shorts_urls = Column(String)
     created_at = Column(String)
 
+class Job(Base):
+    __tablename__ = "jobs"
+    id = Column(String, primary_key=True)      # job_id like "job_1717403123"
+    episode_name = Column(String)
+    status = Column(String, default="pending") # pending / processing / done / error
+    progress = Column(Integer, default=0)      # 0-100
+    progress_msg = Column(String, default="Starting...")
+    video_url = Column(String)
+    thumbnail_url = Column(String)
+    shorts_urls = Column(String)
+    error = Column(String)
+    created_at = Column(String)
+    updated_at = Column(String)
+
+
 import os
 db_url = "sqlite:////data/cartoon_v2.db" if os.path.exists("/data") or os.environ.get("MODAL_IMAGE_ID") else "sqlite:///cartoon_v2.db"
 engine = create_engine(db_url, connect_args={"timeout": 15})

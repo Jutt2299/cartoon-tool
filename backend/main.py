@@ -124,82 +124,149 @@ async def serve_media(episode_id: str, filename: str):
 # Video Generation Routes
 # ─────────────────────────────────────
 
-@app.post("/generate")
-async def generate_episode(request: ScriptRequest):
-    """Complete episode generate karo"""
-    
+from database import Job
+import time
+
+@modal_app.function(image=image, volumes={"/data": volume}, timeout=86400) # 24 hours timeout
+def background_generate_episode(job_id: str, script_text: str, episode_name: str):
+    """Background task running on Modal to generate the video."""
+    db = Session()
+    job = db.query(Job).filter_by(id=job_id).first()
+    if not job:
+        db.close()
+        return
+
     try:
-        print("Script parse ho rahi hai...")
-        scenes = script_parser.process_script(request.script_text)
+        job.status = "processing"
+        job.progress = 10
+        job.progress_msg = "Parsing script..."
+        db.commit()
+
+        print(f"[{job_id}] Script parse ho rahi hai...")
+        scenes = script_parser.process_script(script_text)
         
-        # NOTE: Hum real Kaggle calls skip kar rahe hain Presentation ke liye
-        # Taake video instantly render ho aur Shorts/Thumbnails showcase hon
-        print("Processing full pipeline (Dummy Video mode for presentation)...")
-        
+        job.progress = 30
+        job.progress_msg = "Generating video (captions & rendering)..."
+        db.commit()
+
+        print(f"[{job_id}] Processing full pipeline...")
         episode_id = f"ep_{int(datetime.now().timestamp())}"
         output_dir = f"/data/media/{episode_id}"
         
         import video_processor
         
-        # This will download demo video, translate & burn captions, make thumbnail & shorts
+        # This takes the longest time
         media_results = video_processor.process_full_pipeline(
-            request.episode_name, scenes, output_dir
+            episode_name, scenes, output_dir
         )
         
-        # Base URL construction assuming typical proxy, but relative paths are safer
         video_url = f"/media/{episode_id}/final_video.mp4"
         thumbnail_url = f"/media/{episode_id}/thumbnail.jpg"
         shorts_urls = [f"/media/{episode_id}/short_0.mp4", f"/media/{episode_id}/short_1.mp4"]
         
-        # Save to Database
-        db = Session()
+        job.progress = 90
+        job.progress_msg = "Saving to database..."
+        db.commit()
+
+        # Save to EpisodeHistory
         history = EpisodeHistory(
-            title=request.episode_name,
+            title=episode_name,
             video_url=video_url,
             thumbnail_url=thumbnail_url,
             shorts_urls=json.dumps(shorts_urls),
             created_at=datetime.now().isoformat()
         )
         db.add(history)
+        
+        # Update Job
+        job.status = "done"
+        job.progress = 100
+        job.progress_msg = "Completed successfully!"
+        job.video_url = video_url
+        job.thumbnail_url = thumbnail_url
+        job.shorts_urls = json.dumps(shorts_urls)
+        job.updated_at = datetime.now().isoformat()
         db.commit()
         
-        # ─────────────────────────────────────
-        # AUTO-CLEANUP: Keep only last 5 episodes
-        # ─────────────────────────────────────
+        # Cleanup old episodes (keep last 5)
         import shutil
         total_episodes = db.query(EpisodeHistory).count()
         if total_episodes > 5:
-            # Find the oldest episodes to delete
             episodes_to_delete = db.query(EpisodeHistory).order_by(EpisodeHistory.id.asc()).limit(total_episodes - 5).all()
             for ep in episodes_to_delete:
-                # The video_url is like /media/ep_123456/final_video.mp4
-                # We need to extract the folder name and delete it
                 if ep.video_url:
                     parts = ep.video_url.split("/")
                     if len(parts) >= 3:
-                        folder_name = parts[2] # ep_123456
+                        folder_name = parts[2]
                         folder_path = f"/data/media/{folder_name}"
                         if os.path.exists(folder_path):
                             try:
                                 shutil.rmtree(folder_path)
-                                print(f"Deleted old media folder: {folder_path}")
-                            except Exception as e:
-                                print(f"Error deleting {folder_path}: {e}")
+                            except:
+                                pass
                 db.delete(ep)
             db.commit()
             
-        db.close()
-        
-        return {
-            "status": "success",
-            "episode": request.episode_name,
-            "video_url": video_url,
-            "thumbnail_url": thumbnail_url,
-            "shorts": shorts_urls
-        }
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[{job_id}] Error: {str(e)}")
+        job.status = "error"
+        job.error = str(e)
+        job.progress_msg = "Failed"
+        db.commit()
+    finally:
+        db.close()
+
+
+@app.post("/generate")
+async def generate_episode(request: ScriptRequest):
+    """Start background episode generation"""
+    job_id = f"job_{int(datetime.now().timestamp())}"
+    
+    db = Session()
+    new_job = Job(
+        id=job_id,
+        episode_name=request.episode_name,
+        status="pending",
+        progress=0,
+        progress_msg="Queued...",
+        created_at=datetime.now().isoformat(),
+        updated_at=datetime.now().isoformat()
+    )
+    db.add(new_job)
+    db.commit()
+    db.close()
+    
+    # Run the generation in the background using Modal
+    background_generate_episode.spawn(job_id, request.script_text, request.episode_name)
+    
+    return {
+        "status": "queued",
+        "job_id": job_id,
+        "message": "Video generation started in the background."
+    }
+
+@app.get("/job/{job_id}/status")
+async def get_job_status(job_id: str):
+    """Check the status of a generation job"""
+    db = Session()
+    job = db.query(Job).filter_by(id=job_id).first()
+    if not job:
+        db.close()
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    response = {
+        "job_id": job.id,
+        "episode_name": job.episode_name,
+        "status": job.status,
+        "progress": job.progress,
+        "progress_msg": job.progress_msg,
+        "error": job.error,
+        "video_url": job.video_url,
+        "thumbnail_url": job.thumbnail_url,
+        "shorts_urls": json.loads(job.shorts_urls) if job.shorts_urls else []
+    }
+    db.close()
+    return response
 
 @app.get("/history")
 async def get_history():

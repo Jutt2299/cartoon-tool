@@ -41,47 +41,61 @@ export default function Home() {
       setProgress({ stage: "Script scenes mein toot rahi hai...", percent: 10 });
       await new Promise(r => setTimeout(r, 1000));
 
-      // Stage 2
-      setProgress({ stage: "Characters detect ho rahe hain...", percent: 20 });
-      await new Promise(r => setTimeout(r, 1000));
+    setError("");
+    setDone(false);
+    setProgress({ stage: "Script verify ho rahi hai...", percent: 10 });
 
-      // Stage 3
-      setProgress({ stage: "Kaggle session check ho raha hai...", percent: 30 });
-
+    try {
+      // Step 1: Start background job
       const result = await api.generateEpisode(script, episodeName);
 
-      if (result.status === "success") {
-        // Stage 4
-        setProgress({ stage: "Videos ban rahi hain...", percent: 50 });
-        await new Promise(r => setTimeout(r, 1500));
+      if (result.status === "queued") {
+        const jobId = result.job_id;
+        
+        // Step 2: Poll for status
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusResult = await api.getJobStatus(jobId);
+            
+            setProgress({ 
+              stage: statusResult.progress_msg || "Processing...", 
+              percent: statusResult.progress || 10 
+            });
 
-        // Stage 5
-        setProgress({ stage: "Audio generate ho raha hai...", percent: 70 });
-        await new Promise(r => setTimeout(r, 1500));
+            if (statusResult.status === "done") {
+              clearInterval(pollInterval);
+              
+              let generatedVideoUrl = DEMO_VIDEO_URL;
+              if (statusResult.video_url) {
+                // We use base API URL + relative video_url
+                const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+                generatedVideoUrl = `${BASE_URL}${statusResult.video_url}`;
+              }
 
-        // Stage 6
-        setProgress({ stage: "Video assembly ho rahi hai...", percent: 90 });
-        await new Promise(r => setTimeout(r, 1500));
-
-        // Fetch video URL or use Demo
-        let generatedVideoUrl = DEMO_VIDEO_URL;
-        if (result.scenes && result.scenes.length > 0 && result.scenes[0].video_url) {
-            generatedVideoUrl = result.scenes[0].video_url;
-        }
-
-        setVideoUrl(generatedVideoUrl);
-        setProgress({ stage: "Episode ban gaya! 🎉", percent: 100 });
-        setDone(true);
+              setVideoUrl(generatedVideoUrl);
+              setProgress({ stage: "Episode ban gaya! 🎉", percent: 100 });
+              setDone(true);
+              setGenerating(false);
+            } else if (statusResult.status === "error") {
+              clearInterval(pollInterval);
+              setError(statusResult.error || "Kuch masla hua!");
+              setGenerating(false);
+            }
+          } catch (pollErr) {
+            console.error("Polling error:", pollErr);
+            // Keep polling unless it's a persistent error
+          }
+        }, 3000); // Poll every 3 seconds
 
       } else {
         setError(result.detail || "Kuch masla hua!");
+        setGenerating(false);
       }
 
     } catch (err) {
       setError("Error: " + err.message);
+      setGenerating(false);
     }
-
-    setGenerating(false);
   };
 
   const handleReset = () => {

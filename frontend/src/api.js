@@ -36,6 +36,11 @@ const api = {
     return res.json();
   },
 
+  getJobStatus: async (jobId) => {
+    const res = await fetch(`${BASE_URL}/job/${jobId}/status`);
+    return res.json();
+  },
+
   // Kaggle Settings
   addKaggleAccount: async (username, token) => {
     const res = await fetch(`${BASE_URL}/settings/kaggle/add`, {

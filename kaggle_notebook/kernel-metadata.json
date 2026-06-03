@@ -1,0 +1,10 @@
+{
+  "id": "YOUR_USERNAME_HERE/cartoon-video-generator",
+  "title": "Cartoon Video Generator",
+  "code_file": "notebook.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true
+}

@@ -291,7 +291,7 @@ async def get_history():
 
 @app.post("/settings/kaggle/add")
 async def add_kaggle_account(request: KaggleAccountRequest):
-    """Naya Kaggle account add karo"""
+    """Naya Kaggle account add karo aur auto-setup karo"""
     db = Session()
     
     # Check karo already hai ya nahi
@@ -302,6 +302,13 @@ async def add_kaggle_account(request: KaggleAccountRequest):
     if existing:
         db.close()
         raise HTTPException(status_code=400, detail="Account already exists!")
+        
+    try:
+        # Auto Setup: Create and push Kaggle notebook
+        kaggle_manager.auto_setup_notebook(request.username, request.token)
+    except Exception as e:
+        db.close()
+        raise HTTPException(status_code=400, detail=f"Kaggle Setup Failed: {str(e)}")
     
     account = KaggleAccount(
         username=request.username,
@@ -314,7 +321,7 @@ async def add_kaggle_account(request: KaggleAccountRequest):
     db.commit()
     db.close()
     
-    return {"status": "added", "username": request.username}
+    return {"status": "added", "username": request.username, "message": "Notebook auto-setup complete!"}
 
 @app.delete("/settings/kaggle/{username}")
 async def delete_kaggle_account(username: str):
@@ -334,19 +341,42 @@ async def delete_kaggle_account(username: str):
 
 @app.post("/settings/elevenlabs/add")
 async def add_elevenlabs_key(request: ElevenLabsKeyRequest):
-    """Naya ElevenLabs key add karo"""
+    """Naya ElevenLabs key add karo and verify karo"""
     db = Session()
+    
+    existing = db.query(ElevenLabsKey).filter_by(
+        api_key=request.api_key
+    ).first()
+    
+    if existing:
+        db.close()
+        raise HTTPException(status_code=400, detail="API Key already exists!")
+        
+    # Verify the key using the manager
+    from elevenlabs import elevenlabs_manager
+    verification = elevenlabs_manager.verify_key(request.api_key)
+    
+    if not verification.get("valid"):
+        db.close()
+        raise HTTPException(status_code=400, detail=f"Invalid API Key: {verification.get('error', 'Unknown error')}")
+    
+    # Save with character counts from verification
+    chars_used = verification.get("chars_used", 0)
     
     key = ElevenLabsKey(
         api_key=request.api_key,
-        chars_used=0,
+        chars_used=chars_used,
         is_active=1
     )
     db.add(key)
     db.commit()
     db.close()
     
-    return {"status": "added"}
+    return {
+        "status": "added", 
+        "chars_remaining": verification.get("chars_remaining", 10000 - chars_used),
+        "message": "Key verified successfully!"
+    }
 
 @app.delete("/settings/elevenlabs/{key_id}")
 async def delete_elevenlabs_key(key_id: int):

@@ -133,4 +133,32 @@ class ElevenLabsManager:
         db.close()
         return result
 
+    def verify_key(self, api_key: str) -> dict:
+        """Verify API key and return characters remaining"""
+        try:
+            response = httpx.get(
+                "https://api.elevenlabs.io/v1/user",
+                headers={"xi-api-key": api_key},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                # ElevenLabs returns character count in subscription tier limits
+                # Typically data["subscription"]["character_count"] and data["subscription"]["character_limit"]
+                subscription = data.get("subscription", {})
+                char_count = subscription.get("character_count", 0)
+                char_limit = subscription.get("character_limit", 10000)
+                
+                remaining = char_limit - char_count
+                return {
+                    "valid": True, 
+                    "chars_used": char_count, 
+                    "chars_remaining": remaining
+                }
+            else:
+                return {"valid": False, "error": f"Invalid key (Status: {response.status_code})"}
+        except Exception as e:
+            return {"valid": False, "error": str(e)}
+
 elevenlabs_manager = ElevenLabsManager()

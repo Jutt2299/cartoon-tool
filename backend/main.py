@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import asyncio
@@ -8,12 +10,23 @@ import os
 import json
 from datetime import datetime
 
-from database import Session, KaggleAccount, ElevenLabsKey, get_db
+from database import Session, KaggleAccount, ElevenLabsKey, get_db, EpisodeHistory
 from kaggle_manager import kaggle_manager
 from script_parser import script_parser
 from elevenlabs import elevenlabs_manager
 
 app = FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    """Mount static files only after Modal volume is ready"""
+    media_dir = "/data/media" if os.path.exists("/data") else "/tmp/media"
+    os.makedirs(media_dir, exist_ok=True)
+    # Mount static files for serving videos/thumbnails
+    try:
+        app.mount("/media", StaticFiles(directory=media_dir), name="media")
+    except Exception:
+        pass  # Already mounted or directory issue
 
 # CORS — Frontend se connection allow karo
 app.add_middleware(
@@ -85,11 +98,7 @@ async def register_url(request: RegisterURLRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-from fastapi.staticfiles import StaticFiles
-from database import EpisodeHistory
-
-os.makedirs("/data/media", exist_ok=True)
-app.mount("/media", StaticFiles(directory="/data/media"), name="media")
+# Static files mounted in startup_event above
 
 # ─────────────────────────────────────
 # Video Generation Routes

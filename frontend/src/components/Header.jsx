@@ -61,19 +61,32 @@ export default function Header() {
 
   // Determine active session
   let activeAccount = null;
+  let isStarting = false;
   if (status && status.kaggle_accounts) {
     activeAccount = status.kaggle_accounts.find(a => a.is_active === 1);
+    if (activeAccount && !activeAccount.ngrok_url) {
+        isStarting = true;
+    }
   }
 
   return (
     <header className="h-16 border-b border-gray-800/50 glass-dark flex items-center justify-between px-8 sticky top-0 z-40">
       <div className="flex items-center gap-2">
-        {/* Placeholder for left side if needed */}
         <span className="text-gray-400 font-medium">Dashboard Overview</span>
       </div>
 
       <div className="flex items-center gap-4">
-        {activeAccount ? (
+        {loading || isStarting ? (
+          <div className="flex items-center gap-3 bg-yellow-500/10 border border-yellow-500/20 px-4 py-1.5 rounded-full">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-500"></span>
+            </span>
+            <span className="text-sm font-medium text-yellow-400">
+              {loading ? (elapsed > 0 ? `Initializing... ${elapsed}s` : "Initializing...") : "Starting on Kaggle (Wait 2-3 mins)..."}
+            </span>
+          </div>
+        ) : activeAccount && !isStarting ? (
           <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/20 px-4 py-1.5 rounded-full">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>

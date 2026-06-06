@@ -5,8 +5,8 @@ from database import Session, Character, ElevenLabsKey
 
 class ScriptParser:
 
-    def parse_script(self, script_text: str):
-        """Script ko scenes mein todo"""
+    def parse_script_manual(self, script_text: str):
+        """Purana manual rule-based parsing fallback"""
         scenes = []
         current_scene = {
             "scene_number": 0,
@@ -23,8 +23,6 @@ class ScriptParser:
             if not line:
                 continue
 
-            # Scene heading detect karo
-            # Format: SCENE 1: [Location]
             if line.upper().startswith("SCENE"):
                 if current_scene["dialogues"] or current_scene["action"]:
                     scenes.append(current_scene)
@@ -38,13 +36,9 @@ class ScriptParser:
                     "action": ""
                 }
 
-            # Action/description detect karo
-            # Format: [Ahmed walks into room]
             elif line.startswith("[") and line.endswith("]"):
                 current_scene["action"] += " " + line[1:-1]
 
-            # Dialogue detect karo
-            # Format: Ahmed: "Yaar kya ho raha hai!"
             elif ":" in line:
                 parts = line.split(":", 1)
                 character_name = parts[0].strip()
@@ -56,41 +50,21 @@ class ScriptParser:
                         "text": dialogue
                     })
 
-        # Last scene add karo
         if current_scene["dialogues"] or current_scene["action"]:
             scenes.append(current_scene)
 
         return scenes
 
     def detect_gender(self, name: str, context: str = "") -> str:
-        """Character ka gender detect karo naam se"""
+        """Character ka gender detect karo naam se (simple offline logic)"""
+        name_lower = name.lower()
+        female_names = ["sara", "fatima", "ayesha", "zainab", "maryam", "amna", "hira", "sana", "maria", "sadia", "girl", "woman", "mom", "mother", "aunt", "sister", "baji"]
         
-        # Claude API se gender detect karwao
-        prompt = f"""
-        Character name: {name}
-        Context: {context}
-        
-        Is this character male or female?
-        Reply with only one word: "male" or "female"
-        Consider Pakistani/Urdu names as well.
-        """
-        
-        response = httpx.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": "TUMHARI_CLAUDE_API_KEY",
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            },
-            json={
-                "model": "claude-opus-4-5",
-                "max_tokens": 10,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-        )
-        
-        gender = response.json()["content"][0]["text"].strip().lower()
-        return gender if gender in ["male", "female"] else "male"
+        for f_name in female_names:
+            if f_name in name_lower:
+                return "female"
+                
+        return "male"
 
     def get_or_create_character(self, name: str, context: str = ""):
         """Character database mein check karo — nahi hai to banao"""
@@ -197,30 +171,93 @@ class ScriptParser:
         return prompt.strip()
 
     def process_script(self, script_text: str):
-        """Complete script process karo"""
+        """Complete script process karo using Gemini AI if available"""
+        from database import GlobalSettings
+        db = Session()
+        settings = db.query(GlobalSettings).first()
+        gemini_key = settings.gemini_api_key if settings else None
+        db.close()
         
-        # Scenes mein todo
-        scenes = self.parse_script(script_text)
+        scenes = None
+        if gemini_key:
+            try:
+                import google.generativeai as genai
+                genai.configure(api_key=gemini_key)
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                
+                prompt = f"""
+                You are an expert scriptwriter and prompt engineer for an AI video generation pipeline.
+                The user will provide a raw story or script below. It could be in English, Urdu, or Roman Urdu.
+                Your task is to parse the story and break it down into sequential scenes.
+                
+                For each scene, extract:
+                1. A brief 'location' (where the scene happens).
+                2. The 'action' (what is happening in the scene).
+                3. Any 'dialogues' spoken in the scene. For each dialogue, provide the 'character' name and the 'text' they speak.
+                4. A highly detailed, Midjourney-style 'video_prompt' for the scene. The prompt should be in English, optimized for 2D flat cartoon animation. Include lighting, mood, camera angle, and detailed character descriptions based on the action. 
+                
+                Return the output STRICTLY as a valid JSON array of objects. Do not include any markdown formatting like ```json.
+                
+                Format Example:
+                [
+                  {{
+                    "scene_number": 1,
+                    "location": "Bedroom",
+                    "action": "Ali is sleeping in his bed when a thief quietly enters.",
+                    "dialogues": [],
+                    "video_prompt": "2D flat cartoon animation style, Pakistani setting, Bedroom, Ali sleeping on bed, thief entering from window, moonlight, vibrant colors, clear outlines, family friendly."
+                  }},
+                  {{
+                     "scene_number": 2,
+                     "location": "Bedroom",
+                     "action": "Ali wakes up and shouts at the thief.",
+                     "dialogues": [
+                         {{"character": "Ali", "text": "Oyee chor!"}}
+                     ],
+                     "video_prompt": "2D flat cartoon animation style..."
+                  }}
+                ]
+                
+                User's Story/Script:
+                \"\"\"{script_text}\"\"\"
+                """
+                response = model.generate_content(prompt)
+                raw_text = response.text.strip()
+                if raw_text.startswith("```json"):
+                    raw_text = raw_text[7:]
+                if raw_text.endswith("```"):
+                    raw_text = raw_text[:-3]
+                scenes = json.loads(raw_text.strip())
+                print("Gemini ne successfully script parse kar di!")
+            except Exception as e:
+                print("Gemini API error (using fallback):", e)
+                scenes = None
+                
+        if not scenes:
+            print("Using manual parser fallback...")
+            scenes = self.parse_script_manual(script_text)
         
         processed_scenes = []
-        
-        for scene in scenes:
+        for i, scene in enumerate(scenes):
+            scene_num = scene.get("scene_number", i+1)
             # Har character ko process karo
-            for dialogue in scene["dialogues"]:
-                char_name = dialogue["character"]
+            for dialogue in scene.get("dialogues", []):
+                char_name = dialogue.get("character", "Unknown")
                 self.get_or_create_character(
                     char_name, 
-                    context=dialogue["text"]
+                    context=dialogue.get("text", "")
                 )
             
-            # Video prompt banao
-            video_prompt = self.generate_video_prompt(scene)
-            
+            # Agar Gemini ne video_prompt nahi diya toh fallback use karo
+            video_prompt = scene.get("video_prompt")
+            if not video_prompt:
+                video_prompt = self.generate_video_prompt(scene)
+                
             processed_scenes.append({
-                "scene_number": scene["scene_number"],
-                "location": scene["location"],
-                "action": scene["action"],
-                "dialogues": scene["dialogues"],
+                "scene_number": scene_num,
+                "location": scene.get("location", ""),
+                "action": scene.get("action", ""),
+                "dialogues": scene.get("dialogues", []),
                 "video_prompt": video_prompt
             })
         

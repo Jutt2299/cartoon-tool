@@ -46,29 +46,26 @@ class KaggleManager:
             db.close()
             return {"status": "already_running", "account": active.username}
         
-        # Best account choose karo
-        account = self.get_best_account()
-        
-        # Kaggle credentials set karo
-        os.environ["KAGGLE_USERNAME"] = account.username
-        os.environ["KAGGLE_KEY"] = account.token
+        # Best account choose karo (get username/token only)
+        best = self.get_best_account()
+        username = best.username
+        token = best.token
         
         # Notebook push/run karo
         try:
-            subprocess.run([
-                "kaggle", "kernels", "push",
-                "-p", f"./kaggle_notebook"
-            ], check=True)
-            
-            # Active mark karo
+            self.auto_setup_notebook(username, token)
+            # Re-query within THIS session to properly save is_active and clear old ngrok URL
+            import time
+            account = db.query(KaggleAccount).filter_by(username=username).first()
             account.is_active = 1
-            account.hours_used += 0  # Track baad mein
+            account.ngrok_url = None
+            account.last_poll_time = time.time()
             db.commit()
             db.close()
             
             return {
                 "status": "started",
-                "account": account.username
+                "account": username
             }
             
         except Exception as e:
@@ -84,14 +81,54 @@ class KaggleManager:
             db.close()
             return {"status": "no_active_session"}
         
-        # Hours calculate karo
-        # (baad mein start time track karenge)
+        # Actually stop the notebook on Kaggle
+        username = active.username
+        token = active.token
+        
+        import tempfile
+        import json
+        with tempfile.TemporaryDirectory() as temp_dir:
+            metadata = {
+                "id": f"{username}/cartoon-backend-server",
+                "title": "Cartoon Backend Server",
+                "code_file": "stop.ipynb",
+                "language": "python",
+                "kernel_type": "notebook",
+                "is_private": "true",
+                "enable_gpu": "true",
+                "enable_internet": "true"
+            }
+            with open(os.path.join(temp_dir, "kernel-metadata.json"), "w") as f:
+                json.dump(metadata, f)
+            
+            # Empty notebook that finishes instantly
+            notebook_content = {
+                "cells": [{"cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [], "source": ["print('Session stopped.')"]}],
+                "metadata": {},
+                "nbformat": 4,
+                "nbformat_minor": 5
+            }
+            with open(os.path.join(temp_dir, "stop.ipynb"), "w") as f:
+                json.dump(notebook_content, f)
+            
+            # Use current credentials
+            os.environ["KAGGLE_USERNAME"] = username
+            os.environ["KAGGLE_KEY"] = token
+            
+            # Execute push
+            subprocess.run(
+                ["kaggle", "kernels", "push", "-p", temp_dir],
+                capture_output=True, text=True
+            )
+            
+        # Reset DB status
         active.is_active = 0
         active.ngrok_url = None
+        active.last_poll_time = 0
         db.commit()
         db.close()
         
-        return {"status": "stopped", "account": active.username}
+        return {"status": "stopped", "account": username}
     
     def register_url(self, account_username: str, url: str):
         """Kaggle notebook se URL receive karo"""
@@ -192,6 +229,9 @@ class KaggleManager:
                 
                 notebook_content_str = notebook_content_str.replace("[NGROK_TOKEN]", ngrok_token)
                 notebook_content_str = notebook_content_str.replace("__NGROK_TOKEN_PLACEHOLDER__", ngrok_token)
+                
+                # Inject the Kaggle username so notebook knows which account to register URL for
+                notebook_content_str = notebook_content_str.replace("__KAGGLE_USERNAME_PLACEHOLDER__", username)
                 
                 notebook_content = json.loads(notebook_content_str)
                 

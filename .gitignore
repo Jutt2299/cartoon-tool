@@ -1,11 +1,40 @@
+# Node modules
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Python virtual env
+backend/venv/
 venv/
 __pycache__/
-.env
-node_modules/
 *.pyc
-.DS_Store
-cartoon.db
 
-kaggle_notebook/notebook_ready.ipynb
-backend/test_push.py
-backend/test_push_2.py
+# Local database
+backend/cartoon_v2.db
+*.db
+
+# Frontend build
+frontend/dist/
+
+# Debug/test scripts
+backend/test_db.py
+backend/test_db_schema.py
+backend/test_ngrok.py
+backend/test_session.py
+backend/test_elevenlabs.py
+backend/check_accounts.py
+backend/check_job.py
+backend/check_kaggle.py
+backend/check_kaggle_api.py
+backend/check_kaggle_kernel.py
+backend/debug_push.py
+backend/fix_notebook.py
+backend/force_stop_kaggle.py
+
+# Kaggle large model files
+kaggle_logs/
+*.pth
+
+# Env files
+.env
+.env.local

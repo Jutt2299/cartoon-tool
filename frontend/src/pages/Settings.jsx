@@ -11,6 +11,7 @@ export default function Settings() {
   
   const [globalNgrok, setGlobalNgrok] = useState("");
   const [globalHf, setGlobalHf] = useState("");
+  const [globalGemini, setGlobalGemini] = useState("");
   
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ text: "", type: "" });
@@ -22,6 +23,7 @@ export default function Settings() {
       if (data.global_settings) {
         setGlobalNgrok(data.global_settings.ngrok_token || "");
         setGlobalHf(data.global_settings.hf_token || "");
+        setGlobalGemini(data.global_settings.gemini_api_key || "");
       }
     } catch (err) {
       console.error(err);
@@ -41,7 +43,7 @@ export default function Settings() {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.saveGlobalSettings(globalNgrok, globalHf);
+      await api.saveGlobalSettings(globalNgrok, globalHf, globalGemini);
       showMsg("Global Tokens saved successfully!");
       loadStatus();
     } catch (err) {
@@ -122,7 +124,7 @@ export default function Settings() {
         <p className="text-sm text-gray-400 mb-6">Yeh tokens sab Kaggle notebooks ke liye use honge (Ngrok tunnel aur HuggingFace model download ke liye).</p>
         
         <form onSubmit={handleSaveGlobal} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">Ngrok Token</label>
               <input 
@@ -136,6 +138,14 @@ export default function Settings() {
               <input 
                 type="password" placeholder="HF Token (Read Access)" required
                 value={globalHf} onChange={e => setGlobalHf(e.target.value)}
+                className="w-full glass bg-[#0B0C10]/80 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-yellow-500 text-white placeholder-gray-600"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Gemini API Key</label>
+              <input 
+                type="password" placeholder="Google Gemini AI Key" required
+                value={globalGemini} onChange={e => setGlobalGemini(e.target.value)}
                 className="w-full glass bg-[#0B0C10]/80 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-yellow-500 text-white placeholder-gray-600"
               />
             </div>

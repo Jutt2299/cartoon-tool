@@ -27,18 +27,21 @@ THUMB_WIDTH   = 1280
 THUMB_HEIGHT  = 720
 THUMB_DPI     = 300
 
-DEMO_VIDEO_URL = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_demo_video():
-    """Downloads a demo video for processing if it doesn't exist."""
+    """Generates a dummy 2-second blue video if it doesn't exist."""
     path = "/tmp/demo_video.mp4"
     if not os.path.exists(path):
-        print("Downloading demo video...")
-        urllib.request.urlretrieve(DEMO_VIDEO_URL, path)
+        print("Generating dummy demo video...")
+        cmd = [
+            "ffmpeg", "-f", "lavfi", "-i", "color=c=blue:s=1280x720:d=2",
+            "-c:v", "libx264", "-y", path
+        ]
+        import subprocess
+        subprocess.run(cmd, check=True)
     return path
 
 
@@ -366,22 +369,169 @@ def generate_shorts(video_path: str, output_dir: str, num_shorts: int = 2):
 # Main Pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 
+def generate_scene_video_from_kaggle(ngrok_url: str, prompt: str, scene_id: str, output_path: str) -> bool:
+    """Kaggle Wan2.1 se asli video generate karo"""
+    import httpx
+    import base64
+    try:
+        print(f"Calling Kaggle for scene {scene_id}: {prompt[:60]}...")
+        resp = httpx.post(
+            f"{ngrok_url}/generate",
+            json={"prompt": prompt, "scene_id": scene_id, "account_id": "main"},
+            timeout=300  # 5 minute timeout per scene
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            video_b64 = data.get("video_data", "")
+            if video_b64:
+                video_bytes = base64.b64decode(video_b64)
+                with open(output_path, 'wb') as f:
+                    f.write(video_bytes)
+                print(f"Scene video saved: {output_path}")
+                return True
+        print(f"Kaggle returned {resp.status_code}: {resp.text[:200]}")
+        return False
+    except Exception as e:
+        print(f"Kaggle call failed for scene {scene_id}: {e}")
+        return False
+
+
+def generate_scene_audio_from_elevenlabs(dialogue_text: str, voice_id: str, api_key: str, output_path: str) -> bool:
+    """ElevenLabs se audio generate karo"""
+    import httpx
+    try:
+        # Default voices if voice_id is a placeholder
+        if not voice_id or voice_id in ["default_male", "default_female"]:
+            voice_id = "ErXwobaYiN019PkySvjV" if "female" not in str(voice_id) else "EXAVITQu4vr4xnSDxMaL"
+        
+        resp = httpx.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+            headers={"xi-api-key": api_key, "Content-Type": "application/json"},
+            json={
+                "text": dialogue_text,
+                "model_id": "eleven_multilingual_v2",
+                "voice_settings": {"stability": 0.5, "similarity_boost": 0.8}
+            },
+            timeout=60
+        )
+        if resp.status_code == 200:
+            with open(output_path, 'wb') as f:
+                f.write(resp.content)
+            return True
+        print(f"ElevenLabs error: {resp.status_code}: {resp.text[:200]}")
+        return False
+    except Exception as e:
+        print(f"ElevenLabs call failed: {e}")
+        return False
+
+
+def merge_video_audio(video_path: str, audio_path: str, output_path: str):
+    """Video aur audio merge karo"""
+    run_ffmpeg([
+        "ffmpeg", "-y",
+        "-i", video_path,
+        "-i", audio_path,
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-shortest",
+        output_path
+    ])
+
+
 def process_full_pipeline(episode_name: str, scenes: list, output_dir: str):
-    """Runs the full high-quality pipeline on a demo video."""
+    """Full pipeline: Kaggle AI video + ElevenLabs audio + assembly"""
     os.makedirs(output_dir, exist_ok=True)
 
-    print("Downloading demo video...")
-    base_video = get_demo_video()
-
-    print("Adding per-dialogue captions (1080p 60fps)...")
+    # Kaggle ngrok URL lo database se
+    from database import Session, KaggleAccount, ElevenLabsKey
+    db = Session()
+    active_account = db.query(KaggleAccount).filter_by(is_active=1).first()
+    ngrok_url = active_account.ngrok_url if active_account else None
+    
+    # ElevenLabs key lo
+    el_key_obj = db.query(ElevenLabsKey).filter(
+        ElevenLabsKey.is_active == 1,
+        ElevenLabsKey.chars_used < 9500
+    ).first()
+    elevenlabs_key = el_key_obj.api_key if el_key_obj else None
+    db.close()
+    
+    scene_video_clips = []
+    
+    for i, scene in enumerate(scenes):
+        scene_id = f"scene_{i}"
+        prompt = scene.get("video_prompt", f"Animated cartoon scene: {scene.get('action', '')}")
+        
+        scene_video_path = f"{output_dir}/{scene_id}_raw.mp4"
+        
+        # Kaggle se asli AI video lo
+        if ngrok_url:
+            success = generate_scene_video_from_kaggle(ngrok_url, prompt, scene_id, scene_video_path)
+            if not success:
+                print(f"Kaggle failed for scene {i}, using demo video...")
+                import shutil
+                shutil.copy(get_demo_video(), scene_video_path)
+        else:
+            print(f"No ngrok URL — using demo video for scene {i}")
+            import shutil
+            shutil.copy(get_demo_video(), scene_video_path)
+        
+        # Dialogues ke liye audio banao aur merge karo
+        if scene.get("dialogues") and elevenlabs_key:
+            merged_parts = []
+            for j, dialogue in enumerate(scene["dialogues"]):
+                audio_path = f"{output_dir}/{scene_id}_dialogue_{j}.mp3"
+                merged_path = f"{output_dir}/{scene_id}_part_{j}.mp4"
+                
+                # Ek dialogue ka audio lo
+                audio_ok = generate_scene_audio_from_elevenlabs(
+                    dialogue["text"],
+                    dialogue.get("voice_id", "default_male"),
+                    elevenlabs_key,
+                    audio_path
+                )
+                
+                if audio_ok and os.path.exists(audio_path):
+                    try:
+                        merge_video_audio(scene_video_path, audio_path, merged_path)
+                        merged_parts.append(merged_path)
+                    except:
+                        merged_parts.append(scene_video_path)
+                else:
+                    merged_parts.append(scene_video_path)
+            
+            scene_video_clips.append(merged_parts[-1] if merged_parts else scene_video_path)
+        else:
+            scene_video_clips.append(scene_video_path)
+    
+    # Sab scenes concatenate karo
+    if len(scene_video_clips) > 1:
+        concat_list_path = f"{output_dir}/concat_list.txt"
+        with open(concat_list_path, 'w') as f:
+            for clip in scene_video_clips:
+                f.write(f"file '{clip}'\n")
+        
+        combined_path = f"{output_dir}/combined.mp4"
+        run_ffmpeg([
+            "ffmpeg", "-y",
+            "-f", "concat", "-safe", "0",
+            "-i", concat_list_path,
+            "-c", "copy",
+            combined_path
+        ])
+    else:
+        combined_path = scene_video_clips[0] if scene_video_clips else get_demo_video()
+    
+    # Captions add karo
+    print("Adding captions (1080p 60fps)...")
     final_video_path = f"{output_dir}/final_video.mp4"
-    add_captions(base_video, scenes, final_video_path)
+    add_captions(combined_path, scenes, final_video_path)
 
-    print("Generating thumbnail (1280×720 300dpi)...")
+    print("Generating thumbnail...")
     thumbnail_path = f"{output_dir}/thumbnail.jpg"
     generate_thumbnail(final_video_path, episode_name, thumbnail_path)
 
-    print("Generating vertical shorts (1080×1920)...")
+    print("Generating vertical shorts...")
     shorts_paths = generate_shorts(final_video_path, output_dir, num_shorts=2)
 
     return {
@@ -389,3 +539,4 @@ def process_full_pipeline(episode_name: str, scenes: list, output_dir: str):
         "thumbnail_url": thumbnail_path,
         "shorts_urls":   shorts_paths,
     }
+

@@ -21,6 +21,7 @@ class KaggleAccount(Base):
     last_reset = Column(String)
     ngrok_url = Column(String)
     is_active = Column(Integer, default=0)
+    last_poll_time = Column(Float, default=0)
 
 class ElevenLabsKey(Base):
     __tablename__ = "elevenlabs_keys"
@@ -57,11 +58,30 @@ class GlobalSettings(Base):
     id = Column(Integer, primary_key=True)
     ngrok_token = Column(String)
     hf_token = Column(String)
+    gemini_api_key = Column(String)
 
 
 import os
+from sqlalchemy.pool import NullPool
+
 db_url = "sqlite:////data/cartoon_v2.db" if os.path.exists("/data") or os.environ.get("MODAL_IMAGE_ID") else "sqlite:///cartoon_v2.db"
-engine = create_engine(db_url, connect_args={"timeout": 15})
+
+# NullPool = har request fresh connection kholta hai — NFS par stale cache nahi hoga
+engine = create_engine(
+    db_url,
+    connect_args={"timeout": 30, "check_same_thread": False},
+    poolclass=NullPool
+)
+
+from sqlalchemy import event
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    # Removed WAL mode due to Modal NFS disk I/O errors
+    cursor.execute("PRAGMA journal_mode=DELETE")
+    cursor.close()
+
 try:
     Base.metadata.create_all(engine)
 except Exception:

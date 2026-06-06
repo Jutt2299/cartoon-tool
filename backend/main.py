@@ -27,11 +27,12 @@ image = modal.Image.debian_slim().apt_install(
 ).pip_install(
     "fastapi", "uvicorn", "sqlalchemy", "httpx", 
     "kaggle", "requests", "python-dotenv", "aiofiles", "pydantic",
-    "moviepy==1.0.3", "Pillow", "googletrans==4.0.0-rc1"
-).add_local_dir(".", remote_path="/root")
-volume = modal.Volume.from_name("cartoon-db-volume", create_if_missing=True)
+    "moviepy==1.0.3", "Pillow", "googletrans==4.0.0-rc1", "google-generativeai"
+).add_local_dir(".", remote_path="/root"
+).add_local_dir("../kaggle_notebook", remote_path="/kaggle_notebook")
+volume = modal.NetworkFileSystem.from_name("cartoon-db-nfs", create_if_missing=True)
 
-@modal_app.function(image=image, volumes={"/data": volume})
+@modal_app.function(image=image, network_file_systems={"/data": volume})
 @modal.asgi_app()
 def fastapi_modal_app():
     return app
@@ -63,6 +64,7 @@ class ElevenLabsKeyRequest(BaseModel):
 class GlobalSettingsRequest(BaseModel):
     ngrok_token: str
     hf_token: str
+    gemini_api_key: str = ""
 
 class RegisterURLRequest(BaseModel):
     account_username: str
@@ -79,12 +81,14 @@ async def save_global_settings(request: GlobalSettingsRequest):
     if not settings:
         settings = GlobalSettings(
             ngrok_token=request.ngrok_token,
-            hf_token=request.hf_token
+            hf_token=request.hf_token,
+            gemini_api_key=request.gemini_api_key
         )
         db.add(settings)
     else:
         settings.ngrok_token = request.ngrok_token
         settings.hf_token = request.hf_token
+        settings.gemini_api_key = request.gemini_api_key
     db.commit()
     db.close()
     return {"status": "saved"}
@@ -96,8 +100,12 @@ async def get_global_settings():
     settings = db.query(GlobalSettings).first()
     db.close()
     if settings:
-        return {"ngrok_token": settings.ngrok_token, "hf_token": settings.hf_token}
-    return {"ngrok_token": "", "hf_token": ""}
+        return {
+            "ngrok_token": settings.ngrok_token, 
+            "hf_token": settings.hf_token,
+            "gemini_api_key": settings.gemini_api_key or ""
+        }
+    return {"ngrok_token": "", "hf_token": "", "gemini_api_key": ""}
 
 # ─────────────────────────────────────
 # Session Routes
@@ -162,7 +170,7 @@ async def serve_media(episode_id: str, filename: str):
 from database import Job
 import time
 
-@modal_app.function(image=image, volumes={"/data": volume}, timeout=86400) # 24 hours timeout
+@modal_app.function(image=image, network_file_systems={"/data": volume}, timeout=86400) # 24 hours timeout
 def background_generate_episode(job_id: str, script_text: str, episode_name: str):
     """Background task running on Modal to generate the video."""
     db = Session()
@@ -283,8 +291,17 @@ async def generate_episode(request: ScriptRequest):
 @app.get("/job/{job_id}/status")
 async def get_job_status(job_id: str):
     """Check the status of a generation job"""
+    import time
     db = Session()
-    job = db.query(Job).filter_by(id=job_id).first()
+    job = None
+    for _ in range(3):
+        try:
+            job = db.query(Job).filter_by(id=job_id).first()
+            break
+        except Exception as e:
+            db.close()
+            db = Session()
+            time.sleep(1)
     if not job:
         db.close()
         raise HTTPException(status_code=404, detail="Job not found")
@@ -433,12 +450,25 @@ async def delete_elevenlabs_key(key_id: int):
 async def get_status():
     from elevenlabs import elevenlabs_manager
     from database import GlobalSettings
+    import time
     db = Session()
     
     # Kaggle accounts
     kaggle_accounts = []
     records = db.query(KaggleAccount).all()
+    current_time = time.time()
+    
     for r in records:
+        if r.is_active == 1:
+            # Calculate elapsed time since last poll
+            if r.last_poll_time and r.last_poll_time > 0:
+                elapsed_secs = current_time - r.last_poll_time
+                elapsed_hours = elapsed_secs / 3600.0
+                r.hours_used += elapsed_hours
+            
+            r.last_poll_time = current_time
+            db.commit()
+            
         kaggle_accounts.append({
             "username": r.username,
             "token": r.token,
@@ -453,10 +483,22 @@ async def get_status():
     if global_set:
         global_settings = {
             "ngrok_token": global_set.ngrok_token,
-            "hf_token": global_set.hf_token
+            "hf_token": global_set.hf_token,
+            "gemini_api_key": global_set.gemini_api_key or ""
         }
     
     db.close()
+    
+    # Live fetch for ElevenLabs
+    db2 = Session()
+    from database import ElevenLabsKey
+    keys = db2.query(ElevenLabsKey).all()
+    for k in keys:
+        live_stats = elevenlabs_manager.verify_key(k.api_key)
+        if live_stats.get("valid"):
+            k.chars_used = live_stats.get("chars_used", k.chars_used)
+    db2.commit()
+    db2.close()
     
     elevenlabs_keys = elevenlabs_manager.get_keys_status()
     

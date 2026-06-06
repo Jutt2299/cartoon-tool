@@ -18,11 +18,15 @@ const api = {
     return res.json();
   },
 
-  saveGlobalSettings: async (ngrokToken, hfToken) => {
+  saveGlobalSettings: async (ngrokToken, hfToken, geminiApiKey) => {
     const res = await fetch(`${BASE_URL}/settings/global`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ngrok_token: ngrokToken, hf_token: hfToken })
+      body: JSON.stringify({ 
+        ngrok_token: ngrokToken, 
+        hf_token: hfToken,
+        gemini_api_key: geminiApiKey 
+      })
     });
     return res.json();
   },

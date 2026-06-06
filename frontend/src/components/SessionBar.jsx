@@ -8,8 +8,8 @@ export default function SessionBar() {
 
   useEffect(() => {
     checkStatus();
-    // Har 30 sec mein status check karo
-    const interval = setInterval(checkStatus, 30000);
+    // Har 10 sec mein status check karo taakay jaldi update ho
+    const interval = setInterval(checkStatus, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -18,7 +18,11 @@ export default function SessionBar() {
       const data = await api.getStatus();
       const active = data.kaggle_accounts.find(a => a.is_active);
       if (active) {
-        setStatus("online");
+        if (active.ngrok_url) {
+          setStatus("online");
+        } else {
+          setStatus("starting");
+        }
         setActiveAccount(active);
       } else {
         setStatus("offline");
@@ -33,8 +37,8 @@ export default function SessionBar() {
     setLoading(true);
     try {
       await api.startSession();
-      // URL aane ka wait karo
-      await new Promise(r => setTimeout(r, 15000));
+      // start_session API returned, ab DB mein is_active=1 ho gaya hoga
+      // Foran check karo status ko update karne ke liye
       await checkStatus();
     } catch (err) {
       alert("Session start nahi hua: " + err.message);
@@ -60,12 +64,13 @@ export default function SessionBar() {
       {/* Left — Status */}
       <div className="flex items-center gap-3">
         <div className={`w-3 h-3 rounded-full ${
-          status === "online" ? "bg-green-400 animate-pulse" : "bg-red-400"
+          status === "online" ? "bg-green-400 animate-pulse" : 
+          status === "starting" ? "bg-yellow-400 animate-pulse" : "bg-red-400"
         }`}/>
         <span className="text-white text-sm font-medium">
-          {status === "online" 
-            ? `Active: ${activeAccount?.username}` 
-            : "Session Offline"}
+          {status === "online" ? `Active: ${activeAccount?.username}` :
+           status === "starting" ? `Starting: ${activeAccount?.username} (Wait ~2 mins)` :
+           "Session Offline"}
         </span>
         {activeAccount && (
           <span className="text-gray-400 text-xs">
@@ -75,14 +80,20 @@ export default function SessionBar() {
       </div>
 
       {/* Right — Buttons */}
-      <div className="flex items-center gap-3">
-        {status === "offline" ? (
+      <div className="flex items-center gap-3 relative">
+        {status === "online" && (
+          <div className="absolute top-12 right-0 bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap shadow-lg">
+            Notebook run ho chuki hai aur link mil chuka hai ab aap video bana sakte hain! 🎉
+          </div>
+        )}
+
+        {(status === "offline" || status === "starting") ? (
           <button
             onClick={startSession}
-            disabled={loading}
-            className="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition"
+            disabled={loading || status === "starting"}
+            className={`${status === "starting" ? "bg-yellow-600" : "bg-green-500 hover:bg-green-600"} disabled:opacity-50 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition`}
           >
-            {loading ? "Starting..." : "▶ Start Session"}
+            {loading || status === "starting" ? "Starting on Kaggle..." : "▶ Start Session"}
           </button>
         ) : (
           <button

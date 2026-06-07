@@ -256,7 +256,6 @@ class KaggleManager:
                         "outputs": [],
                         "source": [
                             "# CELL 1 - Install dependencies\n",
-                            "!pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118\n",
                             "!pip install diffusers transformers accelerate sentencepiece\n",
                             "!pip install fastapi uvicorn pyngrok imageio[ffmpeg]\n",
                             "!pip install opencv-python pillow numpy huggingface_hub"

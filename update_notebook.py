@@ -7,7 +7,6 @@ cell1 = {
     'cell_type': 'code', 'execution_count': None, 'metadata': {}, 'outputs': [],
     'source': [
         '# CELL 1 - Install dependencies\n',
-        '!pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118\n',
         '!pip install -q diffusers transformers accelerate sentencepiece\n',
         '!pip install -q fastapi uvicorn pyngrok "imageio[ffmpeg]"\n',
         '!pip install -q opencv-python pillow numpy huggingface_hub\n',

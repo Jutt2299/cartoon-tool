@@ -1,16 +1,20 @@
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const BASE_URL = "https://irfangull2288--cartoon-backend-fastapi-modal-app.modal.run";
 
 const api = {
 
   // Session
   startSession: async () => {
     const res = await fetch(`${BASE_URL}/session/start`, { method: "POST" });
-    return res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Unknown error");
+    return data;
   },
 
   stopSession: async () => {
     const res = await fetch(`${BASE_URL}/session/stop`, { method: "POST" });
-    return res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Unknown error");
+    return data;
   },
 
   getGlobalSettings: async () => {

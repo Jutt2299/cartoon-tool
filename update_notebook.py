@@ -7,9 +7,11 @@ cell1 = {
     'cell_type': 'code', 'execution_count': None, 'metadata': {}, 'outputs': [],
     'source': [
         '# CELL 1 - Install dependencies\n',
-        '!pip install -q -U diffusers transformers accelerate sentencepiece\n',
+        '!pip install -q --force-reinstall "diffusers>=0.32.0" transformers accelerate sentencepiece\n',
         '!pip install -q fastapi uvicorn pyngrok "imageio[ffmpeg]"\n',
-        '!pip install -q opencv-python pillow numpy huggingface_hub\n',
+        '!pip install -q opencv-python pillow numpy "huggingface_hub>=0.23.0"\n',
+        'import importlib, diffusers\n',
+        'print("Diffusers version:", diffusers.__version__)\n',
         'print("All dependencies installed!")'
     ]
 }

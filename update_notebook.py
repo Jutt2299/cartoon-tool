@@ -1,0 +1,158 @@
+import json
+
+with open('kaggle_notebook/notebook.ipynb', 'r', encoding='utf-8') as f:
+    nb = json.load(f)
+
+cell1 = {
+    'cell_type': 'code', 'execution_count': None, 'metadata': {}, 'outputs': [],
+    'source': [
+        '# CELL 1 - Install dependencies\n',
+        '!pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118\n',
+        '!pip install -q diffusers transformers accelerate sentencepiece\n',
+        '!pip install -q fastapi uvicorn pyngrok "imageio[ffmpeg]"\n',
+        '!pip install -q opencv-python pillow numpy huggingface_hub\n',
+        'print("All dependencies installed!")'
+    ]
+}
+
+cell2 = {
+    'cell_type': 'code', 'execution_count': None, 'metadata': {}, 'outputs': [],
+    'source': [
+        '# CELL 2 - Download LTX-Video model\n',
+        'import os\n',
+        'from huggingface_hub import snapshot_download\n',
+        'try:\n',
+        '    from kaggle_secrets import UserSecretsClient\n',
+        '    user_secrets = UserSecretsClient()\n',
+        '    hf_token = user_secrets.get_secret("HF_TOKEN")\n',
+        'except:\n',
+        '    hf_token = os.environ.get("HF_TOKEN", "__HF_TOKEN_PLACEHOLDER__")\n',
+        '\n',
+        'print("Downloading LTX-Video model...")\n',
+        'model_id = "Lightricks/LTX-Video"\n',
+        'local_dir = "/kaggle/working/ltx-model"\n',
+        'if hf_token:\n',
+        '    snapshot_download(repo_id=model_id, local_dir=local_dir, token=hf_token)\n',
+        'else:\n',
+        '    snapshot_download(repo_id=model_id, local_dir=local_dir)\n',
+        'print("LTX-Video model downloaded!")'
+    ]
+}
+
+cell3 = {
+    'cell_type': 'code', 'execution_count': None, 'metadata': {}, 'outputs': [],
+    'source': [
+        '# CELL 3 - Load LTX model and start FastAPI server\n',
+        'import threading, uvicorn, os, torch, time, base64\n',
+        'from fastapi import FastAPI\n',
+        'from fastapi.responses import JSONResponse\n',
+        'from pydantic import BaseModel\n',
+        'from diffusers import LTXVideoPipeline\n',
+        'from diffusers.utils import export_to_video\n',
+        '\n',
+        'print("Loading LTX-Video pipeline on GPU...")\n',
+        'pipe = LTXVideoPipeline.from_pretrained("/kaggle/working/ltx-model", torch_dtype=torch.bfloat16)\n',
+        'pipe = pipe.to("cuda")\n',
+        'print("LTX-Video ready on GPU!")\n',
+        '\n',
+        'app = FastAPI()\n',
+        'last_activity = time.time()\n',
+        'IDLE_TIMEOUT = 10 * 60\n',
+        '\n',
+        'class GenerateRequest(BaseModel):\n',
+        '    prompt: str\n',
+        '    scene_id: str\n',
+        '    account_id: str\n',
+        '\n',
+        '@app.post("/generate")\n',
+        'def generate_video(request: GenerateRequest):\n',
+        '    global last_activity\n',
+        '    last_activity = time.time()\n',
+        '    print(f"Generating: {request.prompt}")\n',
+        '    try:\n',
+        '        result = pipe(\n',
+        '            prompt=request.prompt,\n',
+        '            negative_prompt="worst quality, blurry, jittery",\n',
+        '            width=512, height=288, num_frames=49,\n',
+        '            num_inference_steps=30,\n',
+        '        )\n',
+        '        frames = result.frames[0]\n',
+        '        output_file = f"/kaggle/working/{request.scene_id}.mp4"\n',
+        '        export_to_video(frames, output_file, fps=24)\n',
+        '        with open(output_file, "rb") as f:\n',
+        '            video_b64 = base64.b64encode(f.read()).decode()\n',
+        '        last_activity = time.time()\n',
+        '        return {"status": "success", "video_path": output_file, "video_b64": video_b64}\n',
+        '    except Exception as e:\n',
+        '        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})\n',
+        '\n',
+        '@app.get("/health")\n',
+        'def health():\n',
+        '    return {"status": "alive", "model": "LTX-Video"}\n',
+        '\n',
+        'def idle_checker():\n',
+        '    global last_activity\n',
+        '    while True:\n',
+        '        time.sleep(30)\n',
+        '        if time.time() - last_activity > IDLE_TIMEOUT:\n',
+        '            print("Idle 10 min. Shutting down...")\n',
+        '            os._exit(0)\n',
+        '\n',
+        'threading.Thread(target=idle_checker, daemon=True).start()\n',
+        'threading.Thread(target=lambda: uvicorn.run(app, host="0.0.0.0", port=8000), daemon=True).start()\n',
+        'print("FastAPI server ready on port 8000!")'
+    ]
+}
+
+cell4 = {
+    'cell_type': 'code', 'execution_count': None, 'metadata': {}, 'outputs': [],
+    'source': [
+        '# CELL 4 - Start ngrok tunnel & Register with backend\n',
+        'import os, requests\n',
+        'from pyngrok import ngrok\n',
+        'try:\n',
+        '    from kaggle_secrets import UserSecretsClient\n',
+        '    user_secrets = UserSecretsClient()\n',
+        '    ngrok_token = user_secrets.get_secret("NGROK_TOKEN")\n',
+        'except:\n',
+        '    ngrok_token = os.environ.get("NGROK_TOKEN", "__NGROK_TOKEN_PLACEHOLDER__")\n',
+        '\n',
+        'try:\n',
+        '    from kaggle_secrets import UserSecretsClient\n',
+        '    user_secrets = UserSecretsClient()\n',
+        '    kaggle_user = user_secrets.get_secret("KAGGLE_USERNAME")\n',
+        'except:\n',
+        '    kaggle_user = os.environ.get("KAGGLE_USERNAME", "__KAGGLE_USERNAME_PLACEHOLDER__")\n',
+        '\n',
+        'if ngrok_token:\n',
+        '    ngrok.set_auth_token(ngrok_token)\n',
+        '\n',
+        'public_url = ngrok.connect(8000).public_url\n',
+        'print(f"Ngrok URL: {public_url}")\n',
+        '\n',
+        'backend_url = "https://irfangull2288--cartoon-backend-fastapi-modal-app.modal.run/session/register-url"\n',
+        'try:\n',
+        '    resp = requests.post(backend_url, json={"account_username": kaggle_user, "url": public_url})\n',
+        '    print("Registered:", resp.json())\n',
+        'except Exception as e:\n',
+        '    print("Registration failed:", e)'
+    ]
+}
+
+cell5 = {
+    'cell_type': 'code', 'execution_count': None, 'metadata': {}, 'outputs': [],
+    'source': [
+        '# CELL 5 - Keep alive\n',
+        'import time\n',
+        'print("System fully ready! Waiting for generation requests...")\n',
+        'while True:\n',
+        '    time.sleep(60)'
+    ]
+}
+
+nb['cells'] = [cell1, cell2, cell3, cell4, cell5]
+
+with open('kaggle_notebook/notebook.ipynb', 'w', encoding='utf-8') as f:
+    json.dump(nb, f, indent=1)
+
+print('notebook.ipynb updated to LTX-Video successfully!')

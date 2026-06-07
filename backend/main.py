@@ -113,10 +113,50 @@ async def get_global_settings():
 
 @app.post("/session/start")
 async def start_session():
-    """Best Kaggle account pe session start karo"""
+    """Best Kaggle account (most GPU hours remaining) pe session start karo"""
     try:
-        result = kaggle_manager.start_session()
+        from datetime import datetime, timedelta
+        import time
+        db = Session()
+        accounts = db.query(KaggleAccount).all()
+        
+        # Weekly reset check (Kaggle har Sunday reset karta hai)
+        now = datetime.now()
+        for acc in accounts:
+            if acc.last_reset:
+                try:
+                    last_reset_dt = datetime.fromisoformat(acc.last_reset)
+                    # 7 din se zyada ho gaya toh reset
+                    if (now - last_reset_dt).days >= 7:
+                        acc.hours_used = 0
+                        acc.last_reset = now.isoformat()
+                except:
+                    pass
+            else:
+                acc.last_reset = now.isoformat()
+        db.commit()
+        
+        # Best account choose karo (sabse zyada hours remaining)
+        best_account = None
+        best_hours_left = -1
+        for acc in accounts:
+            hours_left = max(0, 30 - (acc.hours_used or 0))
+            if hours_left > best_hours_left:
+                best_hours_left = hours_left
+                best_account = acc
+        
+        db.close()
+        
+        if not best_account:
+            raise HTTPException(status_code=400, detail="Koi Kaggle account nahi mila!")
+        
+        if best_hours_left < 0.5:
+            raise HTTPException(status_code=400, detail="Tamam Kaggle accounts ka GPU quota khatam ho gaya! (Weekly reset Sunday ko hoga)")
+        
+        result = kaggle_manager.start_session(preferred_username=best_account.username)
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -459,20 +499,34 @@ async def get_status():
     current_time = time.time()
     
     for r in records:
+        # Weekly reset check
+        if r.last_reset:
+            try:
+                from datetime import datetime as dt2
+                last_reset_dt = dt2.fromisoformat(r.last_reset)
+                if (dt2.now() - last_reset_dt).days >= 7:
+                    r.hours_used = 0
+                    r.last_reset = dt2.now().isoformat()
+            except:
+                pass
+        
         if r.is_active == 1:
             # Calculate elapsed time since last poll
             if r.last_poll_time and r.last_poll_time > 0:
                 elapsed_secs = current_time - r.last_poll_time
                 elapsed_hours = elapsed_secs / 3600.0
-                r.hours_used += elapsed_hours
+                r.hours_used = (r.hours_used or 0) + elapsed_hours
             
             r.last_poll_time = current_time
             db.commit()
             
+        hours_used = r.hours_used or 0
+        hours_remaining = max(0, 30 - hours_used)
         kaggle_accounts.append({
             "username": r.username,
             "token": r.token,
-            "hours_used": r.hours_used,
+            "hours_used": round(hours_used, 2),
+            "hours_remaining": round(hours_remaining, 2),
             "is_active": r.is_active,
             "ngrok_url": r.ngrok_url
         })

@@ -36,7 +36,7 @@ class KaggleManager:
         db.close()
         return best
     
-    def start_session(self):
+    def start_session(self, preferred_username: str = None):
         """Best account pe notebook start karo"""
         db = Session()
         
@@ -46,8 +46,17 @@ class KaggleManager:
             db.close()
             return {"status": "already_running", "account": active.username}
         
-        # Best account choose karo (get username/token only)
-        best = self.get_best_account()
+        # preferred_username diya gaya hai toh wahi use karo
+        if preferred_username:
+            best = db.query(KaggleAccount).filter_by(username=preferred_username).first()
+            if not best:
+                db.close()
+                best = self.get_best_account()
+        else:
+            db.close()
+            best = self.get_best_account()
+            db = Session()
+        
         username = best.username
         token = best.token
         
@@ -247,8 +256,9 @@ class KaggleManager:
                         "outputs": [],
                         "source": [
                             "# CELL 1 - Install dependencies\n",
-                            "!pip install torch diffusers transformers accelerate\n",
-                            "!pip install fastapi uvicorn pyngrok\n",
+                            "!pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118\n",
+                            "!pip install diffusers transformers accelerate sentencepiece\n",
+                            "!pip install fastapi uvicorn pyngrok imageio[ffmpeg]\n",
                             "!pip install opencv-python pillow numpy huggingface_hub"
                         ]
                         },
@@ -258,7 +268,7 @@ class KaggleManager:
                         "metadata": {},
                         "outputs": [],
                         "source": [
-                            "# CELL 2 - Download Wan2.1 model\n",
+                            "# CELL 2 - Download LTX Video 2.3 model (~2GB only)\n",
                             "import os\n",
                             "from huggingface_hub import snapshot_download\n",
                             "from kaggle_secrets import UserSecretsClient\n",
@@ -269,15 +279,14 @@ class KaggleManager:
                             "except:\n",
                             f"    hf_token = os.environ.get(\"HF_TOKEN\", \"{hf_token}\")\n",
                             "\n",
-                            "print(\"Downloading Wan2.1 model...\")\n",
-                            "model_id = \"Wan-AI/Wan2.1-T2V-1.3B\"\n",
-                            "local_dir = \"/kaggle/working/wan-model\"\n",
+                            "print(\"Downloading LTX-Video-2.3 model (~2GB)...\")\n",
+                            "model_id = \"Lightricks/LTX-Video-2B-0.9.7\"\n",
+                            "local_dir = \"/kaggle/working/ltx-model\"\n",
                             "if hf_token:\n",
                             "    snapshot_download(repo_id=model_id, local_dir=local_dir, token=hf_token)\n",
                             "else:\n",
-                            "    # Attempt without token (might work if model is public)\n",
                             "    snapshot_download(repo_id=model_id, local_dir=local_dir)\n",
-                            "print(\"Model downloaded successfully!\")"
+                            "print(\"LTX-Video model downloaded successfully!\")"
                         ]
                         },
                         {
@@ -286,58 +295,76 @@ class KaggleManager:
                         "metadata": {},
                         "outputs": [],
                         "source": [
-                            "# CELL 3 - Start FastAPI server\n",
-                            "import asyncio\n",
+                            "# CELL 3 - Load LTX model and Start FastAPI server\n",
                             "import threading\n",
                             "import uvicorn\n",
                             "import os\n",
-                            "from fastapi import FastAPI, HTTPException\n",
-                            "from pydantic import BaseModel\n",
+                            "import torch\n",
                             "import time\n",
+                            "import base64\n",
+                            "from fastapi import FastAPI\n",
+                            "from fastapi.responses import JSONResponse\n",
+                            "from pydantic import BaseModel\n",
+                            "from diffusers import LTXPipeline\n",
+                            "from diffusers.utils import export_to_video\n",
+                            "\n",
+                            "print('Loading LTX-Video pipeline...')\n",
+                            "MODEL_DIR = '/kaggle/working/ltx-model'\n",
+                            "pipe = LTXPipeline.from_pretrained(MODEL_DIR, torch_dtype=torch.bfloat16)\n",
+                            "pipe = pipe.to('cuda')\n",
+                            "print('LTX-Video pipeline loaded on GPU!')\n",
                             "\n",
                             "app = FastAPI()\n",
-                            "\n",
                             "last_activity = time.time()\n",
-                            "IDLE_TIMEOUT = 5 * 60  # 5 minutes in seconds\n",
+                            "IDLE_TIMEOUT = 10 * 60  # 10 minutes\n",
                             "\n",
                             "class GenerateRequest(BaseModel):\n",
                             "    prompt: str\n",
                             "    scene_id: str\n",
                             "    account_id: str\n",
                             "\n",
-                            "@app.post(\"/generate\")\n",
+                            "@app.post('/generate')\n",
                             "def generate_video(request: GenerateRequest):\n",
                             "    global last_activity\n",
                             "    last_activity = time.time()\n",
-                            "    print(f\"Received generation request: {request.prompt} for scene {request.scene_id}\")\n",
-                            "    time.sleep(10)\n",
-                            "    output_file = f\"/kaggle/working/{request.scene_id}.mp4\"\n",
-                            "    with open(output_file, 'wb') as f:\n",
-                            "        f.write(b\"Dummy video content\")\n",
-                            "    last_activity = time.time() # update again after finishing\n",
-                            "    return {\"status\": \"success\", \"video_path\": output_file}\n",
+                            "    print(f'Generating video for: {request.prompt}')\n",
+                            "    try:\n",
+                            "        frames = pipe(\n",
+                            "            prompt=request.prompt,\n",
+                            "            negative_prompt='worst quality, inconsistent motion, blurry, jittery, distorted',\n",
+                            "            width=512,\n",
+                            "            height=288,\n",
+                            "            num_frames=49,\n",
+                            "            num_inference_steps=30,\n",
+                            "        ).frames[0]\n",
+                            "        output_file = f'/kaggle/working/{request.scene_id}.mp4'\n",
+                            "        export_to_video(frames, output_file, fps=24)\n",
+                            "        with open(output_file, 'rb') as f:\n",
+                            "            video_b64 = base64.b64encode(f.read()).decode()\n",
+                            "        last_activity = time.time()\n",
+                            "        print(f'Video generated: {output_file}')\n",
+                            "        return {'status': 'success', 'video_path': output_file, 'video_b64': video_b64}\n",
+                            "    except Exception as e:\n",
+                            "        print(f'Generation error: {e}')\n",
+                            "        return JSONResponse(status_code=500, content={'status': 'error', 'message': str(e)})\n",
                             "\n",
-                            "@app.get(\"/health\")\n",
+                            "@app.get('/health')\n",
                             "def health():\n",
-                            "    return {\"status\": \"alive\"}\n",
+                            "    return {'status': 'alive', 'model': 'LTX-Video-2.3'}\n",
                             "\n",
                             "def idle_checker():\n",
                             "    global last_activity\n",
                             "    while True:\n",
                             "        time.sleep(30)\n",
                             "        if time.time() - last_activity > IDLE_TIMEOUT:\n",
-                            "            print(\"Idle timeout reached (5 mins). Shutting down kernel to save quota...\")\n",
+                            "            print('Idle timeout reached. Shutting down...')\n",
                             "            os._exit(0)\n",
                             "\n",
-                            "idle_thread = threading.Thread(target=idle_checker, daemon=True)\n",
-                            "idle_thread.start()\n",
-                            "\n",
+                            "threading.Thread(target=idle_checker, daemon=True).start()\n",
                             "def run_server():\n",
-                            "    uvicorn.run(app, host=\"0.0.0.0\", port=8000)\n",
-                            "\n",
-                            "server_thread = threading.Thread(target=run_server, daemon=True)\n",
-                            "server_thread.start()\n",
-                            "print(\"FastAPI server started on port 8000\")"
+                            "    uvicorn.run(app, host='0.0.0.0', port=8000)\n",
+                            "threading.Thread(target=run_server, daemon=True).start()\n",
+                            "print('FastAPI server with LTX-Video ready on port 8000!')"
                         ]
                         },
                         {

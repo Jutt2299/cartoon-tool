@@ -188,17 +188,43 @@ export default function Settings() {
               <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Saved Accounts</h3>
               {!statusData ? <p className="text-sm text-gray-500">Loading...</p> : 
                 statusData.kaggle_accounts.length === 0 ? <p className="text-sm text-gray-500">No accounts saved</p> :
-                statusData.kaggle_accounts.map(acc => (
-                  <div key={acc.username} className="flex items-center justify-between glass bg-white/5 p-3 rounded-lg border border-white/5">
-                    <div>
-                      <div className="font-medium text-gray-200">{acc.username}</div>
-                      <div className="text-xs text-green-400">✓ Notebook Ready</div>
+                statusData.kaggle_accounts.map(acc => {
+                  const hoursLeft = acc.hours_remaining ?? (30 - (acc.hours_used || 0));
+                  const pct = Math.max(0, Math.min(100, (hoursLeft / 30) * 100));
+                  const barColor = hoursLeft > 15 ? 'bg-green-500' : hoursLeft > 5 ? 'bg-yellow-500' : 'bg-red-500';
+                  return (
+                    <div key={acc.username} className="glass bg-white/5 p-4 rounded-lg border border-white/5">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium text-gray-200">{acc.username}</div>
+                          {acc.is_active ? (
+                            <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full border border-green-500/30">● Active</span>
+                          ) : (
+                            <span className="text-xs bg-gray-700/50 text-gray-500 px-2 py-0.5 rounded-full">Idle</span>
+                          )}
+                        </div>
+                        <button onClick={() => handleDeleteKaggle(acc.username)} className="text-red-400 hover:text-red-300 text-sm font-medium px-2 py-1 rounded hover:bg-red-500/10 transition">
+                          Remove
+                        </button>
+                      </div>
+                      {/* GPU Hours Bar */}
+                      <div className="mt-1">
+                        <div className="flex justify-between text-xs text-gray-400 mb-1">
+                          <span>GPU Quota (Weekly)</span>
+                          <span className={hoursLeft > 5 ? 'text-green-400' : 'text-red-400'}>
+                            {hoursLeft.toFixed(1)} / 30 hrs left
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div
+                            className={`${barColor} h-2 rounded-full transition-all duration-500`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <button onClick={() => handleDeleteKaggle(acc.username)} className="text-red-400 hover:text-red-300 text-sm font-medium px-2 py-1 rounded hover:bg-red-500/10 transition">
-                      Remove
-                    </button>
-                  </div>
-                ))
+                  );
+                })
               }
             </div>
           </div>

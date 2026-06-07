@@ -73,8 +73,11 @@ export default function SessionBar() {
            "Session Offline"}
         </span>
         {activeAccount && (
-          <span className="text-gray-400 text-xs">
-            {(30 - activeAccount.hours_remaining).toFixed(1)}hr used
+          <span className={`text-xs font-medium ${
+            (activeAccount.hours_remaining ?? 30) > 10 ? 'text-green-400' :
+            (activeAccount.hours_remaining ?? 30) > 3 ? 'text-yellow-400' : 'text-red-400'
+          }`}>
+            {(activeAccount.hours_remaining ?? (30 - (activeAccount.hours_used || 0))).toFixed(1)}hr left
           </span>
         )}
       </div>

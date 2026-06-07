@@ -1,39 +1,54 @@
 import modal
 import sqlite3
-import requests
 import os
+import subprocess
 
 app = modal.App("cartoon-backend")
 volume = modal.NetworkFileSystem.from_name("cartoon-db-nfs", create_if_missing=True)
 
 @app.function(
     network_file_systems={"/data": volume},
-    image=modal.Image.debian_slim().pip_install("requests")
+    image=modal.Image.debian_slim().pip_install("kaggle", "requests")
 )
-def check_kaggle_api():
+def check_gpu_quota():
     conn = sqlite3.connect('/data/cartoon_v2.db')
     cur = conn.cursor()
-    cur.execute('SELECT username, token FROM kaggle_accounts')
-    accounts = cur.fetchall()
+    cur.execute('SELECT username, token FROM kaggle_accounts WHERE is_active=1')
+    account = cur.fetchone()
+    if not account:
+        cur.execute('SELECT username, token FROM kaggle_accounts LIMIT 1')
+        account = cur.fetchone()
     conn.close()
     
-    for username, token in accounts:
-        print(f"\n--- Checking: {username} ---")
+    if not account:
+        print("No Kaggle account found in DB.")
+        return
         
-        # Check kernel status via Kaggle API directly
-        url = f"https://www.kaggle.com/api/v1/kernels/{username}/cartoon-video-generator"
-        resp = requests.get(url, auth=(username, token))
-        print(f"cartoon-video-generator: {resp.status_code} => {resp.text[:500]}")
-        
-        url2 = f"https://www.kaggle.com/api/v1/kernels/{username}/cartoon-backend-server"
-        resp2 = requests.get(url2, auth=(username, token))
-        print(f"cartoon-backend-server: {resp2.status_code} => {resp2.text[:500]}")
-        
-        # List all kernels
-        url3 = "https://www.kaggle.com/api/v1/kernels/list?mine=true&pageSize=5"
-        resp3 = requests.get(url3, auth=(username, token))
-        print(f"All kernels: {resp3.status_code} => {resp3.text[:1000]}")
+    username, token = account
+    print(f"Checking quota for: {username}")
+    
+    import requests
+    from requests.auth import HTTPBasicAuth
+    
+    # Check kernel quota via Kaggle API
+    resp = requests.get(
+        "https://www.kaggle.com/api/v1/kernels/list",
+        params={"mine": True, "pageSize": 1},
+        auth=HTTPBasicAuth(username, token)
+    )
+    print(f"API Status: {resp.status_code}")
+    
+    # Check weekly usage via user profile
+    resp2 = requests.get(
+        f"https://www.kaggle.com/api/v1/users/{username}",
+        auth=HTTPBasicAuth(username, token)
+    )
+    print(f"User API Status: {resp2.status_code}")
+    if resp2.status_code == 200:
+        data = resp2.json()
+        print("User data keys:", list(data.keys()))
+        print("Full response:", data)
 
 if __name__ == "__main__":
     with app.run():
-        check_kaggle_api.remote()
+        check_gpu_quota.remote()

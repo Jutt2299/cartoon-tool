@@ -17,7 +17,10 @@ class KaggleAccount(Base):
     token = Column(String)
     is_active = Column(Integer, default=0)
 
-@app.function(network_file_systems={"/data": volume})
+@app.function(
+    network_file_systems={"/data": volume},
+    image=modal.Image.debian_slim().pip_install("sqlalchemy", "kaggle")
+)
 def force_stop_kaggle():
     db_url = "sqlite:////data/cartoon_v2.db"
     engine = create_engine(db_url)

@@ -7,22 +7,12 @@ cell1 = {
     'cell_type': 'code', 'execution_count': None, 'metadata': {}, 'outputs': [],
     'source': [
         '# CELL 1 - Install dependencies\n',
-        'import sys, os, subprocess, importlib\n',
-        'PKGS = "/kaggle/working/pkgs"\n',
-        'os.makedirs(PKGS, exist_ok=True)\n',
-        '# Use subprocess to properly pass Python variable to pip install\n',
-        'subprocess.run([sys.executable, "-m", "pip", "install", "-q",\n',
-        '    "--target", PKGS,\n',
-        '    "diffusers==0.38.0", "transformers", "accelerate", "sentencepiece"], check=True)\n',
+        '!pip install -q -U diffusers==0.38.0 transformers accelerate sentencepiece\n',
         '!pip install -q fastapi uvicorn pyngrok "imageio[ffmpeg]"\n',
         '!pip install -q opencv-python pillow numpy "huggingface_hub>=0.23.0"\n',
-        '# Prepend our custom dir so Python finds our diffusers first\n',
-        'if PKGS not in sys.path:\n',
-        '    sys.path.insert(0, PKGS)\n',
-        'importlib.invalidate_caches()\n',
         'import diffusers\n',
         'print("Diffusers version:", diffusers.__version__)\n',
-        'print("LTXVideoPipeline available:", hasattr(diffusers, "LTXVideoPipeline"))\n',
+        'print("LTXPipeline available:", hasattr(diffusers, "LTXPipeline"))\n',
         'print("All dependencies installed!")'
     ]
 }

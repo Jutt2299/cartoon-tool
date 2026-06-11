@@ -36,7 +36,7 @@ const api = {
   },
 
   getStatus: async () => {
-    const res = await fetch(`${BASE_URL}/settings/status`);
+    const res = await fetch(`${BASE_URL}/settings/status?t=${Date.now()}`);
     return res.json();
   },
 

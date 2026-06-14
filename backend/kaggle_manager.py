@@ -6,6 +6,9 @@ from datetime import datetime, timedelta
 from database import Session, KaggleAccount
 
 class KaggleManager:
+
+    def __init__(self):
+        self.notebook_slug = "cartoon-video-generator"
     
     def get_best_account(self):
         """Sabse zyada time bacha ho us account ko choose karo"""
@@ -148,10 +151,17 @@ class KaggleManager:
         
         if account:
             account.ngrok_url = url
+            # URL register hone ka matlab Kaggle fully ready hai
+            if url and not url.startswith("ERROR"):
+                account.is_active = 1
+            else:
+                # Error aya toh is_active=0 kar do
+                account.is_active = 0
             db.commit()
         
         db.close()
         return {"status": "url_registered", "url": url}
+
     
     def get_active_url(self):
         """Active Kaggle session ka URL lo"""
@@ -203,17 +213,26 @@ class KaggleManager:
         os.environ["KAGGLE_USERNAME"] = username
         os.environ["KAGGLE_KEY"] = token
         
+        import random
+        import string
+        suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+        fresh_slug = f"{self.notebook_slug}-{suffix}"
+        
         # 3. Create temp dir with notebook files
         with tempfile.TemporaryDirectory() as tmpdir:
             metadata = {
-                "id": f"{username}/cartoon-video-generator",
-                "title": "Cartoon Video Generator",
+                "id": f"{username}/{fresh_slug}",
+                "title": f"Cartoon Video Generator {suffix}",
                 "code_file": "notebook.ipynb",
                 "language": "python",
                 "kernel_type": "notebook",
-                "is_private": True,
-                "enable_gpu": True,
-                "enable_internet": True
+                "is_private": "true",
+                "enable_gpu": "true",
+                "enable_internet": "true",
+                "dataset_sources": [],
+                "competition_sources": [],
+                "kernel_sources": [],
+                "model_sources": []
             }
             with open(os.path.join(tmpdir, "kernel-metadata.json"), "w") as f:
                 json.dump(metadata, f, indent=2)

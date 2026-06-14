@@ -78,8 +78,11 @@ from sqlalchemy import event
 @event.listens_for(engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
-    # Removed WAL mode due to Modal NFS disk I/O errors
-    cursor.execute("PRAGMA journal_mode=DELETE")
+    # MEMORY journal avoids NFS file locking - fixes disk I/O errors on Modal
+    cursor.execute("PRAGMA journal_mode=MEMORY")
+    cursor.execute("PRAGMA synchronous=OFF")
+    cursor.execute("PRAGMA cache_size=10000")
+    cursor.execute("PRAGMA temp_store=MEMORY")
     cursor.close()
 
 try:

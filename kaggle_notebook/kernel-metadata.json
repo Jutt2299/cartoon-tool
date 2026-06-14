@@ -1,10 +1,10 @@
 {
-  "id": "muhammadirfan4/cartoon-backend-server",
-  "title": "Cartoon Backend Server",
-  "code_file": "notebook.ipynb",
-  "language": "python",
-  "kernel_type": "notebook",
-  "is_private": true,
-  "enable_gpu": true,
-  "enable_internet": true
+    "id":  "muhammadirfan4/cartoon-video-generator-v2",
+    "title":  "Cartoon Backend Server",
+    "code_file":  "notebook.ipynb",
+    "language":  "python",
+    "kernel_type":  "notebook",
+    "is_private":  true,
+    "enable_gpu":  true,
+    "enable_internet":  true
 }

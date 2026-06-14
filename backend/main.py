@@ -37,7 +37,6 @@ volume = modal.NetworkFileSystem.from_name("cartoon-db-nfs", create_if_missing=T
 def fastapi_modal_app():
     return app
 # ─────────────────────────────────────
-
 # CORS — Frontend se connection allow karo
 app.add_middleware(
     CORSMiddleware,
@@ -45,6 +44,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def startup_event():
+    from database import Base, engine
+    try:
+        Base.metadata.create_all(engine)
+        print("Database tables initialized successfully on mounted volume.")
+    except Exception as e:
+        print(f"Failed to initialize database tables: {e}")
 
 # ─────────────────────────────────────
 # Models

@@ -85,6 +85,14 @@ export default function Header() {
             <span className="text-sm font-medium text-yellow-400">
               {loading ? (elapsed > 0 ? `Initializing... ${elapsed}s` : "Initializing...") : "Starting on Kaggle (Wait 2-3 mins)..."}
             </span>
+            <div className="w-px h-4 bg-yellow-500/30 mx-1"></div>
+            <button 
+              onClick={handleStop}
+              disabled={loading}
+              className="flex items-center gap-1.5 text-xs font-bold text-red-400 hover:text-red-300 transition disabled:opacity-50"
+            >
+              <Power size={14} /> STOP
+            </button>
           </div>
         ) : activeAccount && !isStarting ? (
           <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/20 px-4 py-1.5 rounded-full">

@@ -275,7 +275,7 @@ class KaggleManager:
                         "outputs": [],
                         "source": [
                             "# CELL 1 - Install dependencies\n",
-                            "!pip install -U diffusers transformers accelerate sentencepiece\n",
+                            "!pip install diffusers transformers accelerate sentencepiece\n",
                             "!pip install fastapi uvicorn pyngrok imageio[ffmpeg]\n",
                             "!pip install opencv-python pillow numpy huggingface_hub"
                         ]

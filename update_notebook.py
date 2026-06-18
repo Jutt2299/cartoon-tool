@@ -64,7 +64,7 @@ cell3 = {
         '\n',
         'try:\n',
         '    print("Loading LTX-Video pipeline on GPU...")\n',
-        '    pipe = LTXPipeline.from_pretrained("Lightricks/LTX-Video", torch_dtype=torch.float16)\n',
+        '    pipe = LTXPipeline.from_pretrained("Lightricks/LTX-Video", torch_dtype=torch.bfloat16)\n',
         '    pipe = pipe.to("cuda")\n',
         '    print("LTX-Video ready on GPU!")\n',
         '\n',

@@ -382,7 +382,8 @@ def generate_scene_video_from_kaggle(ngrok_url: str, prompt: str, scene_id: str,
         )
         if resp.status_code == 200:
             data = resp.json()
-            video_b64 = data.get("video_data", "")
+            # Kaggle notebook returns 'video_b64' key (not 'video_data')
+            video_b64 = data.get("video_b64", "") or data.get("video_data", "")
             if video_b64:
                 video_bytes = base64.b64decode(video_b64)
                 with open(output_path, 'wb') as f:

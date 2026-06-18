@@ -1,4 +1,4 @@
-const BASE_URL = "https://irfangull2288--cartoon-backend-fastapi-modal-app.modal.run";
+const BASE_URL = "https://alonejutt2288--cartoon-backend-fastapi-modal-app.modal.run";
 
 const api = {
 

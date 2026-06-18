@@ -60,7 +60,7 @@ cell3 = {
         'except:\n',
         '    kaggle_user = os.environ.get("KAGGLE_USERNAME", "__KAGGLE_USERNAME_PLACEHOLDER__")\n',
         '\n',
-        'backend_url = "https://irfangull2288--cartoon-backend-fastapi-modal-app.modal.run/session/register-url"\n',
+        'backend_url = "https://alonejutt2288--cartoon-backend-fastapi-modal-app.modal.run/session/register-url"\n',
         '\n',
         'try:\n',
         '    print("Loading LTX-Video pipeline on GPU...")\n',

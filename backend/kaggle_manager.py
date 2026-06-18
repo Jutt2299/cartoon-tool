@@ -228,6 +228,7 @@ class KaggleManager:
                 "kernel_type": "notebook",
                 "is_private": "true",
                 "enable_gpu": "true",
+                "accelerator": "GPU_T4_X1",
                 "enable_internet": "true",
                 "dataset_sources": [],
                 "competition_sources": [],

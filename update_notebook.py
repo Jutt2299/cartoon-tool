@@ -70,7 +70,7 @@ cell3 = {
         '\n',
         '    app = FastAPI()\n',
         '    last_activity = time.time()\n',
-        '    IDLE_TIMEOUT = 10 * 60\n',
+        '    IDLE_TIMEOUT = 8 * 60 * 60\n',
         '\n',
         '    class GenerateRequest(BaseModel):\n',
         '        prompt: str\n',

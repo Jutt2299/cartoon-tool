@@ -385,6 +385,57 @@ async def get_history():
     db.close()
     return {"history": results}
 
+@app.delete("/history/{episode_id}")
+async def delete_history_episode(episode_id: int):
+    """Ek specific history episode delete karo"""
+    import shutil
+    db = Session()
+    episode = db.query(EpisodeHistory).filter_by(id=episode_id).first()
+    if not episode:
+        db.close()
+        raise HTTPException(status_code=404, detail="Episode nahi mila!")
+    
+    # Delete media files from volume
+    if episode.video_url:
+        parts = episode.video_url.split("/")
+        if len(parts) >= 3:
+            folder_name = parts[2]
+            folder_path = f"/data/media/{folder_name}"
+            if os.path.exists(folder_path):
+                try:
+                    shutil.rmtree(folder_path)
+                except:
+                    pass
+    
+    db.delete(episode)
+    db.commit()
+    db.close()
+    return {"status": "deleted", "id": episode_id}
+
+@app.delete("/history")
+async def delete_all_history():
+    """Saari history delete karo"""
+    import shutil
+    db = Session()
+    all_episodes = db.query(EpisodeHistory).all()
+    
+    for episode in all_episodes:
+        if episode.video_url:
+            parts = episode.video_url.split("/")
+            if len(parts) >= 3:
+                folder_name = parts[2]
+                folder_path = f"/data/media/{folder_name}"
+                if os.path.exists(folder_path):
+                    try:
+                        shutil.rmtree(folder_path)
+                    except:
+                        pass
+        db.delete(episode)
+    
+    db.commit()
+    db.close()
+    return {"status": "all_deleted"}
+
 # ─────────────────────────────────────
 # Settings Routes
 # ─────────────────────────────────────

@@ -97,6 +97,20 @@ const api = {
     return res.json();
   },
 
+  deleteHistoryEpisode: async (episodeId) => {
+    const res = await fetch(`${BASE_URL}/history/${episodeId}`, {
+      method: "DELETE"
+    });
+    return res.json();
+  },
+
+  deleteAllHistory: async () => {
+    const res = await fetch(`${BASE_URL}/history`, {
+      method: "DELETE"
+    });
+    return res.json();
+  },
+
 };
 
 export default api;

@@ -46,13 +46,69 @@ app.add_middleware(
 )
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     from database import Base, engine
     try:
         Base.metadata.create_all(engine)
         print("Database tables initialized successfully on mounted volume.")
     except Exception as e:
         print(f"Failed to initialize database tables: {e}")
+        
+    # Start the Kaggle Quota Tracker loop
+    asyncio.create_task(quota_tracker())
+
+async def quota_tracker():
+    """Background loop to track Kaggle hours and auto-cycle sessions."""
+    from database import Session, KaggleAccount
+    while True:
+        await asyncio.sleep(300) # Run every 5 minutes
+        db = Session()
+        try:
+            active_acc = db.query(KaggleAccount).filter_by(is_active=1).first()
+            if active_acc:
+                # Add 5 minutes (0.0833 hours)
+                active_acc.hours_used = (active_acc.hours_used or 0.0) + 0.0833
+                db.commit()
+                print(f"Quota Tracker: {active_acc.username} hours_used updated to {active_acc.hours_used:.2f}")
+                
+                # Auto-cycling logic: If >= 27 hours, switch to the next account
+                if active_acc.hours_used >= 27.0:
+                    print(f"Quota Tracker: {active_acc.username} reached 27 hours! Auto-cycling...")
+                    
+                    # 1. Stop current
+                    try:
+                        kaggle_manager.stop_session()
+                        print("Quota Tracker: Session stopped.")
+                    except Exception as e:
+                        print("Quota Tracker error stopping:", e)
+                        
+                    # 2. Wait a bit then start next
+                    await asyncio.sleep(10)
+                    
+                    # 3. Start next (start_session handles finding the next best account automatically)
+                    # Use a new DB session for start_session since it manages its own DB context
+                    try:
+                        # Find next best account
+                        accounts = db.query(KaggleAccount).filter_by(is_active=0).all()
+                        best_account = None
+                        best_hours_left = -1
+                        for acc in accounts:
+                            hours_left = max(0, 30 - (acc.hours_used or 0))
+                            if hours_left > best_hours_left:
+                                best_hours_left = hours_left
+                                best_account = acc
+                        
+                        if best_account and best_hours_left > 0.5:
+                            kaggle_manager.start_session(preferred_username=best_account.username)
+                            print(f"Quota Tracker: Successfully switched to {best_account.username}")
+                        else:
+                            print("Quota Tracker: No next account available with enough quota!")
+                    except Exception as e:
+                        print("Quota Tracker error starting next:", e)
+        except Exception as e:
+            print("Quota Tracker Loop Error:", e)
+        finally:
+            db.close()
 
 # ─────────────────────────────────────
 # Models
